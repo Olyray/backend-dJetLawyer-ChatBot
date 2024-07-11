@@ -1,0 +1,57 @@
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from app.schemas.chatbot import ChatRequest, ChatResponse, Source
+from app.utils.model_init import initialize_models
+from langchain_core.messages import HumanMessage, SystemMessage
+from app.core.deps import get_db, get_current_user
+from app.models.user import User
+from app.services.chat import add_message, get_chat, create_chat, get_chat_messages
+from app.schemas.chat import ChatCreate, MessageCreate
+
+router = APIRouter()
+
+# Initialize the RAG chain
+rag_chain = initialize_models()
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        # Check if chat_id is provided
+        if request.chat_id:
+            # Get the existing chat
+            chat = get_chat(db, request.chat_id)
+            if not chat or chat.user_id != current_user.id:
+                raise HTTPException(status_code=404, detail="Chat not found")
+            
+            # Retrieve chat history from the database
+            messages = get_chat_messages(db, chat.id)
+        else:
+            # Create a new chat
+            chat = create_chat(db, current_user.id, ChatCreate(title="New Chat"))
+            messages = []  # Empty history for new chats
+
+        # Convert chat history to the format expected by the chain
+        chat_history = [
+            (HumanMessage if msg.role == "human" else SystemMessage)(content=msg.content)
+            for msg in messages
+        ]
+
+        # Process the user's query through the retrieval chain
+        result = rag_chain.invoke({"input": request.message, "chat_history": chat_history})
+
+        # Extract sources from the context
+        sources = [
+            Source(url=doc.metadata.get('source', 'Unknown'))
+            for doc in result['context']
+        ]
+
+        # Save the user's message and the bot's response to the database
+        add_message(db, chat.id, MessageCreate(role="human", content=request.message))
+        add_message(db, chat.id, MessageCreate(role="assistant", content=result.get('answer', '')))
+
+        return ChatResponse(chat_id=chat.id, answer=result['answer'], sources=sources)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
