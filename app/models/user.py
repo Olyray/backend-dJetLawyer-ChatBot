@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from app.db.base import Base
 from sqlalchemy.orm import relationship
+
 
 class User(Base):
     __tablename__ = "users"
@@ -11,3 +12,6 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     google_id = Column(String, unique=True, nullable=True)
     chats = relationship("Chat", back_populates="user")
+    is_verified = Column(Boolean, default=False)
+    verification_token = Column(String, nullable=True)
+    verification_token_expiry = Column(DateTime, nullable=True)

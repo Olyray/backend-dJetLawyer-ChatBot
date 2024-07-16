@@ -1,5 +1,7 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordBearer
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from app.core.config import settings
@@ -32,3 +34,16 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
     if user is None:
         raise credentials_exception
     return user
+
+async def setup_rate_limiter():
+    import redis.asyncio as redis
+    redis_instance = redis.from_url(f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}", encoding="utf-8", decode_responses=True)
+    await FastAPILimiter.init(redis_instance)
+
+# New Addition: Rate limiter dependency
+def get_rate_limiter():
+    async def rate_limit(request: Request, response: Response):
+        limiter = RateLimiter(times=settings.RATE_LIMIT_TIMES, seconds=settings.RATE_LIMIT_SECONDS)
+        await limiter(request, response)
+    return rate_limit
+
