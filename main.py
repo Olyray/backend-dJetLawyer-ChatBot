@@ -2,9 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import auth, chat, chatbot
 from app.core.config import settings
+from app.core.deps import setup_rate_limiter
 from fastapi.responses import JSONResponse
 
 app = FastAPI(title=settings.PROJECT_NAME, debug=True)
+
+@app.on_event("startup")
+async def startup():
+    await setup_rate_limiter()
 
 # Add CORS middleware
 app.add_middleware(
@@ -19,6 +24,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
 app.include_router(chat.router, prefix=f"{settings.API_V1_STR}/chat", tags=["chat"])
 app.include_router(chatbot.router, prefix=f"{settings.API_V1_STR}/chatbot", tags=["chatbot"])
+
 
 @app.get("/")
 async def root():
