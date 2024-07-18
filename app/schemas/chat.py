@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 from typing import List
+import uuid
 
 class MessageBase(BaseModel):
     role: str
@@ -10,8 +11,8 @@ class MessageCreate(MessageBase):
     pass
 
 class Message(MessageBase):
-    id: int
-    chat_id: int
+    id: uuid.UUID
+    chat_id: uuid.UUID
     created_at: datetime
 
     class Config:
@@ -24,8 +25,8 @@ class ChatCreate(ChatBase):
     pass
 
 class Chat(ChatBase):
-    id: int
-    user_id: int
+    id: uuid.UUID
+    user_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
     messages: List[Message] = []

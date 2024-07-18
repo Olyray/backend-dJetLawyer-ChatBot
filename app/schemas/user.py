@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr
+import uuid
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -10,7 +11,7 @@ class UserLogin(UserBase):
     password: str
 
 class UserInDB(UserBase):
-    id: int
+    id: uuid.UUID
     is_active: bool
     google_id: str | None
 

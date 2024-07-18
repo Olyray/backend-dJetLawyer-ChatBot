@@ -2,6 +2,7 @@ from app.models.user import User
 from app.models.chat import Chat, Message
 from app.core.security import create_access_token
 from app.services.auth import get_password_hash
+from uuid import UUID
 
 def test_chatbot_interaction(client, db, mocker):
     # Create a test user and chat
@@ -23,18 +24,23 @@ def test_chatbot_interaction(client, db, mocker):
     }
     mocker.patch('app.api.chatbot.rag_chain', mock_rag_chain)
 
+    chat_id_str = str(chat.id)
+
     # Send a message to the chatbot
     response = client.post(
         "/api/v1/chatbot/chat",
-        json={"message": "What is the meaning of life?", "chat_id": chat.id},
+        json={"message": "What is the meaning of life?", "chat_id": chat_id_str},
         headers={"Authorization": f"Bearer {access_token}"}
     )
+    print(f"Response status code: {response.status_code}")
+    print(f"Response content: {response.content}")
+
     assert response.status_code == 200
     assert "answer" in response.json()
     assert "sources" in response.json()
 
     # Verify the message was saved in the database
-    messages = db.query(Message).filter(Message.chat_id == chat.id).all()
+    messages = db.query(Message).filter(Message.chat_id == UUID(chat_id_str)).all()
     assert len(messages) == 2  # User message and AI response
     assert messages[0].role == "human"
     assert messages[0].content == "What is the meaning of life?"
