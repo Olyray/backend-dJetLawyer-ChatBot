@@ -27,6 +27,8 @@ target_metadata = Base.metadata
 # ... etc.
 
 def get_url():
+    if settings.TESTING is True:
+        return settings.TEST_DATABASE_URL
     return settings.DATABASE_URL
 
 def run_migrations_offline():

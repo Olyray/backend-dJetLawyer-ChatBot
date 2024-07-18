@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     RATE_LIMIT_TIMES: int = 10
     RATE_LIMIT_SECONDS: int = 60
+    TESTING: bool
 
     class Config:
         env_file = ".env"

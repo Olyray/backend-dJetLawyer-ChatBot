@@ -8,6 +8,14 @@ from fastapi.testclient import TestClient
 from app.core.deps import get_db
 from app.models.user import User
 from app.models.chat import Chat, Message
+from alembic import command
+from alembic.config import Config
+
+
+@pytest.fixture(scope="session")
+def apply_migrations():
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
 
 
 @pytest.fixture(scope="session")
@@ -15,7 +23,7 @@ def engine():
     return create_engine(settings.TEST_DATABASE_URL)
 
 @pytest.fixture(scope="session")
-def TestingSessionLocal(engine):
+def TestingSessionLocal(engine, apply_migrations):
     Base.metadata.create_all(bind=engine)
     return sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -39,10 +47,7 @@ def client(db):
 
 @pytest.fixture(autouse=True)
 def clear_db(db):
-    # Delete all messages first
     db.query(Message).delete()
-    # Delete all chats
     db.query(Chat).delete()
-    # Now it's safe to delete all users
     db.query(User).delete()
     db.commit()
