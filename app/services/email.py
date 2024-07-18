@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def send_verification_email(email: str, token: str):
-    verify_url = f"{settings.SERVER_HOST}/verify-email?token={token}"
+    verify_url = f"{settings.SERVER_HOST}/api/v1/auth/verify-email?token={token}"
     
     message = MIMEMultipart("alternative")
     message["Subject"] = "Verify your email"
@@ -32,11 +32,17 @@ def send_verification_email(email: str, token: str):
 
     message.attach(part1)
     message.attach(part2)
+
+    # New Addition: Create a secure SSL/TLS context
     context = ssl.create_default_context()
 
     try:
         logger.info(f"Attempting to connect to email server: {settings.MAIL_SERVER}:{settings.MAIL_PORT}")
-        with smtplib.SMTP_SSL(settings.MAIL_SERVER, settings.MAIL_PORT, context=context, timeout=30) as server:
+        # New Addition: Use SMTP instead of SMTP_SSL for TLS
+        with smtplib.SMTP(settings.MAIL_SERVER, settings.MAIL_PORT) as server:
+            # New Addition: Start TLS for security
+            server.starttls(context=context)
+            
             logger.info(f"Attempting to login with username: {settings.MAIL_USERNAME}")
             server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
             logger.info(f"Attempting to send email to: {email}")
