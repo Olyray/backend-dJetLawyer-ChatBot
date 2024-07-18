@@ -2,6 +2,7 @@ import pytest
 from app.models.user import User
 from app.services.auth import get_password_hash, create_verification_token
 from app.services.email import send_verification_email
+from app.core.config import settings
 
 def test_user_registration_and_login(client, db):
     # Test user registration

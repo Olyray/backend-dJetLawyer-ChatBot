@@ -1,13 +1,15 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import UUID
 from app.db.base import Base
 from datetime import datetime
+import uuid
 
 class Chat(Base):
     __tablename__ = "chats"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     title = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -18,8 +20,8 @@ class Chat(Base):
 class Message(Base):
     __tablename__ = "messages"
 
-    id = Column(Integer, primary_key=True, index=True)
-    chat_id = Column(Integer, ForeignKey("chats.id"))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    chat_id = Column(UUID(as_uuid=True), ForeignKey("chats.id"))
     role = Column(String)
     content = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)

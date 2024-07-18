@@ -10,6 +10,7 @@ from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.services.chat import add_message, get_chat, create_chat, get_chat_messages
 from app.schemas.chat import ChatCreate, MessageCreate
+import uuid
 
 router = APIRouter()
 
@@ -21,6 +22,7 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
     try:
         # Check if chat_id is provided
         if request.chat_id:
+            request.chat_id = uuid.UUID(request.chat_id)
             # Get the existing chat
             chat = get_chat(db, request.chat_id)
             if not chat or chat.user_id != current_user.id:
