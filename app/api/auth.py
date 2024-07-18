@@ -38,6 +38,7 @@ async def verify_email(
     rate_limiter: RateLimiter = Depends(get_rate_limiter)
 ):
     await rate_limiter(request, response)
+    print(token)
 
     user = verify_email_token(db, token)
     if not user:

@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     MAIL_USERNAME: str
     MAIL_PASSWORD: str
     MAIL_FROM: str = "noreply@djetlawyer.com"
-    MAIL_PORT: int = 465
-    MAIL_SERVER: str = "mail.djetlawyer.com"
+    MAIL_PORT: int = 587
+    MAIL_SERVER: str = "lion.wghservers.com"
     SERVER_HOST: str = "http://localhost:8000"
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
