@@ -34,3 +34,5 @@ pytest-mock==3.14.0
 httpx==0.27.0
 fastapi-limiter 
 redis
+passlib
+pysqlite3-binary

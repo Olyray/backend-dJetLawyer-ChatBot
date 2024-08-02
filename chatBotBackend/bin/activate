@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/home/olyray/backend-dJetLawyer-ChatBot/chatBotBackend"
+VIRTUAL_ENV="/home/olyray/dJetLawyerChatbot/backend-dJetLawyer-ChatBot/chatBotBackend"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
@@ -67,4 +67,3 @@ fi
 if [ -n "${BASH:-}" -o -n "${ZSH_VERSION:-}" ] ; then
     hash -r 2> /dev/null
 fi
-export PYTHONPATH="$PYTHONPATH:$PWD"
