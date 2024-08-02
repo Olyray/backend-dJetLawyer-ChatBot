@@ -33,7 +33,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV "/home/olyray/backend-dJetLawyer-ChatBot/chatBotBackend"
+set -gx VIRTUAL_ENV "/home/olyray/dJetLawyerChatbot/backend-dJetLawyer-ChatBot/chatBotBackend"
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/bin" $PATH
