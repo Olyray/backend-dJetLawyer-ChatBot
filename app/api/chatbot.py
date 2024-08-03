@@ -11,11 +11,20 @@ from app.models.user import User
 from app.services.chat import add_message, get_chat, create_chat, get_chat_messages
 from app.schemas.chat import ChatCreate, MessageCreate
 import uuid
-
+from langchain_core.prompts import PromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain_core.runnables import RunnablePassthrough, RunnableSequence
 router = APIRouter()
 
 # Initialize the RAG chain
 rag_chain = initialize_models()
+llm = ChatOpenAI(temperature=0.7)
+
+title_template = PromptTemplate.from_template("Summarize the following message in 5 words or less to create a chat title: {message}")
+
+title_chain = RunnableSequence(
+    title_template | llm | (lambda x: x.content.strip())
+)
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -32,7 +41,8 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
             messages = get_chat_messages(db, chat.id)
         else:
             # Create a new chat
-            chat = create_chat(db, current_user.id, ChatCreate(title="New Chat"))
+            chat_title = title_chain.invoke({"message": request.message})
+            chat = create_chat(db, current_user.id, ChatCreate(title=chat_title))
             messages = []  # Empty history for new chats
 
         # Convert chat history to the format expected by the chain
