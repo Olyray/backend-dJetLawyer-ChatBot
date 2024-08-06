@@ -13,5 +13,6 @@ class Source(BaseModel):
     url: str
 
 class ChatResponse(BaseModel):
+    chat_id: str
     answer: str
     sources: List[Source]
