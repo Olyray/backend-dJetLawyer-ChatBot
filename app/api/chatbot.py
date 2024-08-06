@@ -64,6 +64,6 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
         add_message(db, chat.id, MessageCreate(role="human", content=request.message))
         add_message(db, chat.id, MessageCreate(role="assistant", content=result.get('answer', '')))
 
-        return ChatResponse(chat_id=chat.id, answer=result['answer'], sources=sources)
+        return ChatResponse(chat_id=str(chat.id), answer=result['answer'], sources=sources)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
