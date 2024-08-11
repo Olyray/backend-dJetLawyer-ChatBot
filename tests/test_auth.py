@@ -3,6 +3,7 @@ from app.models.user import User
 from app.services.auth import get_password_hash, create_verification_token
 from app.services.email import send_verification_email
 from app.core.config import settings
+from app.core.security import create_refresh_token
 
 def test_user_registration_and_login(client, db):
     # Test user registration
@@ -55,10 +56,39 @@ def test_email_verification(client, db, mocker):
     assert updated_user.verification_token is None
     assert updated_user.verification_token_expiry is None
 
+
 def test_invalid_verification_token(client, db):
     response = client.get("/api/v1/auth/verify-email?token=invalid_token")
     assert response.status_code == 400
     assert "Invalid or expired verification token" in response.json()["detail"]
+
+
+def test_refresh_token(client, db):
+    # Register a new user
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"email": "refresh@example.com", "password": "testpassword"}
+    )
+    assert response.status_code == 200
+    refresh_token = response.json()["refresh_token"]
+
+    # Test refresh token endpoint
+    response = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": refresh_token}
+    )
+    assert response.status_code == 200
+    assert "access_token" in response.json()
+    assert "refresh_token" in response.json()
+    assert response.json()["token_type"] == "bearer"
+
+
+def test_invalid_refresh_token(client, db):
+    response = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": "invalid_refresh_token"}
+    )
+    assert response.status_code == 401
 
 
 """

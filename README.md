@@ -5,10 +5,10 @@ This is the backend for the dJetLawyer ChatBot, a sophisticated AI-powered legal
 ## Setup
 
 1. Clone the repository
-2. Create a virtual environment: `python -m venv venv`
+2. Create a virtual environment: `python3.10 -m venv ChatBotBackend`
 3. Activate the virtual environment:
    - On Windows: `venv\Scripts\activate`
-   - On macOS and Linux: `source venv/bin/activate`
+   - On macOS and Linux: `source ChatBotBackend/bin/activate`
 4. Install dependencies: `pip install -r requirements.txt`
 5. Copy `.env.example` to `.env` and fill in the required environment variables
 6. Set up the database:
@@ -23,7 +23,7 @@ Once the server is running, you can access the API documentation at `http://loca
 
 ## Testing
 
-To run tests, use the command: `pytest`
+To run tests, use the command: `./run_tests.sh`
 
 ## Deployment
 
@@ -35,11 +35,3 @@ For production deployment, consider the following:
 4. Set up proper logging
 5. Configure a production-ready database
 6. Set up monitoring and error tracking
-
-## Contributing
-
-Please read CONTRIBUTING.md for details on our code of conduct and the process for submitting pull requests.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE.md file for details.
