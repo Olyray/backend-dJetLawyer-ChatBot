@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     RATE_LIMIT_TIMES: int = 10
     RATE_LIMIT_SECONDS: int = 60
     TESTING: bool
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 20
+    
 
     class Config:
         env_file = ".env"

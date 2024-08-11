@@ -4,12 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, 
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_rate_limiter
-from app.schemas.user import Token, UserCreate
+from app.schemas.user import Token, UserCreate, RefreshToken
 from app.services.auth import authenticate_user, create_user, google_authenticate, create_verification_token, verify_email_token
-from app.core.security import create_access_token
+from app.core.security import create_access_token, create_refresh_token, decode_token
 from app.services.email import send_verification_email
 from app.core.config import settings
+from app.models.user import User
 from fastapi_limiter.depends import RateLimiter
+from jose import JWTError
 
 router = APIRouter()
 
@@ -25,9 +27,10 @@ async def register(
     await rate_limiter(request, response)
     db_user = create_user(db, user)
     access_token = create_access_token(data={"sub": db_user.email})
+    refresh_token = create_refresh_token(data={"sub": db_user.email})
     verification_token = create_verification_token(db, db_user)
     background_tasks.add_task(send_verification_email, db_user.email, verification_token)
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
 
 @router.get("/verify-email")
 async def verify_email(
@@ -68,7 +71,32 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    refresh_token = create_refresh_token(data={"sub": user.email})
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+
+
+@router.post("/refresh", response_model=Token)
+async def refresh_token(
+    request: Request,
+    response: Response,
+    refresh_token: RefreshToken,
+    db: Session = Depends(get_db),
+    rate_limiter: RateLimiter = Depends(get_rate_limiter)
+):
+    await rate_limiter(request, response)
+    try:
+        payload = decode_token(refresh_token, settings.SECRET_KEY)
+        email = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=400, detail="Invalid refresh token")
+        user = db.query(User).filter(User.email == email).first()
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        access_token = create_access_token(data={"sub": email})
+        return {"access_token": access_token, "refresh_token": refresh_token.refresh_token, "token_type": "bearer"}
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Invalid refresh token")
+
 
 @router.post("/google-login", response_model=Token)
 def google_login(token: str, db: Session = Depends(get_db)):
