@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     MAIL_SERVER: str = "lion.wghservers.com"
     SERVER_HOST: str = "http://localhost:8000"
     REDIS_HOST: str = "default:N5ya6s9lFL8snuSKGWkqao58EMtxDC2F@redis-14779.c84.us-east-1-2.ec2.redns.redis-cloud.com" #"localhost"
-    REDIS_PORT: int = 14779
+    REDIS_PORT: int = 14779 #6379
     RATE_LIMIT_TIMES: int = 10
     RATE_LIMIT_SECONDS: int = 60
     TESTING: bool
