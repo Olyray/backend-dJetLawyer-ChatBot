@@ -26,6 +26,7 @@ async def register(
 ):
     await rate_limiter(request, response)
     db_user = create_user(db, user)
+    print('user created')
     access_token = create_access_token(data={"sub": db_user.email})
     refresh_token = create_refresh_token(data={"sub": db_user.email})
     verification_token = create_verification_token(db, db_user)
