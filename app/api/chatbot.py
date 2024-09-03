@@ -14,17 +14,36 @@ import uuid
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnablePassthrough, RunnableSequence
+from tiktoken import encoding_for_model 
+
+
 router = APIRouter()
 
 # Initialize the RAG chain
 rag_chain = initialize_models()
 llm = ChatOpenAI(temperature=0.7)
 
+# Define the title template and chain
 title_template = PromptTemplate.from_template("Summarize the following message in 5 words or less to create a chat title: {message}")
 
+# Extract the title from the input message
 title_chain = RunnableSequence(
     title_template | llm | (lambda x: x.content.strip())
 )
+
+# Count the tokens in the message
+def count_tokens(text: str) -> int:
+    enc = encoding_for_model("gpt-4")
+    return len(enc.encode(text))
+
+# Summarize the chat history when it exceeds 3000 tokens
+def summarize_chat_history(chat_history):
+    summary_prompt = PromptTemplate.from_template(
+        "Summarize the following conversation in 200 words or less: {chat_history}"
+    )
+    summary_chain = summary_prompt | llm | (lambda x: x.content.strip())
+    return summary_chain.invoke({"chat_history": "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])})
+
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -45,11 +64,19 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
             chat = create_chat(db, current_user.id, ChatCreate(title=chat_title))
             messages = []  # Empty history for new chats
 
-        # Convert chat history to the format expected by the chain
-        chat_history = [
-            (HumanMessage if msg.role == "human" else SystemMessage)(content=msg.content)
-            for msg in messages
-        ]
+        # Check the total tokens in the chat history
+        total_tokens = sum(count_tokens(msg.content) for msg in messages)
+
+        # If total tokens exceed 3000, summarize the chat history
+        if total_tokens > 1500:
+            summary = summarize_chat_history(messages)
+            chat_history = [SystemMessage(content=f"Chat history summary: {summary}")]
+        else:
+            # Convert chat history to the format expected by the chain
+            chat_history = [
+                (HumanMessage if msg.role == "human" else SystemMessage)(content=msg.content)
+                for msg in messages
+            ]
 
         # Process the user's query through the retrieval chain
         result = rag_chain.invoke({"input": request.message, "chat_history": chat_history})
