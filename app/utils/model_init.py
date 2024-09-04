@@ -29,10 +29,11 @@ def initialize_models():
 
     # Contextualize question prompt
     contextualize_q_system_prompt = (
-        "Given a chat history and the latest user question "
+        "Given a chat history (which might be summarized) and the latest user question "
         "which might reference context in the chat history, "
         "formulate a standalone question which can be understood "
-        "without the chat history. Do NOT answer the question, just "
+        "without the chat history. If the chat history is summarized, "
+        "use the summary to provide context. Do NOT answer the question, just "
         "reformulate it if needed and otherwise return it as is."
     )
 
@@ -52,10 +53,10 @@ def initialize_models():
     # Answer question prompt
     qa_system_prompt = (
         """   
-        You are a knowledgeable Nigerian lawyer. Law students and lawyers would ask you questions, and you're to answer from the documents provided. 
+         You are a knowledgeable Nigerian lawyer. Law students and lawyers would ask you questions, and you're to answer from the documents provided. 
         All your responses must be backed up with Nigerian legal authorities. This means that you must either provide Nigerian statutes or case law to support your position. 
         If you need to find statutes or case law to support your position, check the context I have attached.
-
+        If a chat history summary is provided, use it to maintain context of the conversation.
         """
         "\n\n"
         "{context}"
