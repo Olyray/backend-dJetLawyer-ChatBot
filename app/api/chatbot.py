@@ -11,6 +11,7 @@ from app.models.user import User
 from app.services.chat import add_message, get_chat, create_chat, get_chat_messages
 from app.schemas.chat import ChatCreate, MessageCreate
 import uuid
+import json
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnablePassthrough, RunnableSequence
@@ -83,13 +84,13 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
 
         # Extract sources from the context
         sources = [
-            Source(url=doc.metadata.get('source', 'Unknown'))
+            {"url": doc.metadata.get('source', 'Unknown')}
             for doc in result['context']
         ]
 
         # Save the user's message and the bot's response to the database
         add_message(db, chat.id, MessageCreate(role="human", content=request.message))
-        add_message(db, chat.id, MessageCreate(role="assistant", content=result.get('answer', '')))
+        add_message(db, chat.id, MessageCreate(role="assistant", content=result.get('answer', ''), sources=sources))
 
         return ChatResponse(chat_id=str(chat.id), answer=result['answer'], sources=sources)
     except Exception as e:

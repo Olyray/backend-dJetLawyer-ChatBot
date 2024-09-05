@@ -1,11 +1,16 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Json
 from datetime import datetime
-from typing import List
+from typing import List, Optional, Dict
 import uuid
+
+
+class Source(BaseModel):
+    url: str
 
 class MessageBase(BaseModel):
     role: str
     content: str
+    sources: Optional[List] = None 
 
 class MessageCreate(MessageBase):
     pass
