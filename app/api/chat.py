@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.deps import get_db, get_current_user
-from app.schemas.chat import ChatCreate, Chat, MessageCreate, Message
+from app.schemas.chat import ChatCreate, Chat, MessageCreate, Message, Source
 from app.services.chat import create_chat, get_user_chats, get_chat, add_message, get_chat_messages
 from app.models.user import User
 import uuid
+import json
 
 router = APIRouter()
 
@@ -15,6 +16,7 @@ def create_new_chat(chat: ChatCreate, db: Session = Depends(get_db), current_use
 
 @router.get("/chats", response_model=List[Chat])
 def read_user_chats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    print('getting chats from the API')
     return get_user_chats(db, current_user.id)
 
 @router.get("/chats/{chat_id}", response_model=Chat)
