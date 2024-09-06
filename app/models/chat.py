@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, String, ForeignKey, DateTime, JSON, ARRAY
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.base import Base
@@ -25,5 +25,6 @@ class Message(Base):
     role = Column(String)
     content = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
+    sources = Column(ARRAY(JSON), nullable=True)
 
     chat = relationship("Chat", back_populates="messages")

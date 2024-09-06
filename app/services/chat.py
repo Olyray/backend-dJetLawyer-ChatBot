@@ -1,8 +1,10 @@
 from sqlalchemy.orm import Session
 from app.models.chat import Chat, Message
 from app.schemas.chat import ChatCreate, MessageCreate
+from app.schemas.chatbot import Source
 from typing import Union
 import uuid
+import json
 
 def create_chat(db: Session, user_id: uuid.UUID, chat: ChatCreate):
     db_chat = Chat(user_id=user_id, **chat.dict())
@@ -13,7 +15,7 @@ def create_chat(db: Session, user_id: uuid.UUID, chat: ChatCreate):
 
 def get_user_chats(db: Session, user_id: uuid.UUID):
     return db.query(Chat).filter(Chat.user_id == user_id).all()
-
+    
 def get_chat(db: Session, chat_id: uuid.UUID):
     return db.query(Chat).filter(Chat.id == chat_id).first()
 
