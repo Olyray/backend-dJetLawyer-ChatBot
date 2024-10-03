@@ -17,3 +17,4 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     verification_token = Column(String, nullable=True)
     verification_token_expiry = Column(DateTime, nullable=True)
+    admin_user = Column(Boolean, default=False)
