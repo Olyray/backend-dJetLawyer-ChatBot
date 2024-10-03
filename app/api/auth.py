@@ -7,7 +7,7 @@ from app.core.deps import get_db, get_rate_limiter
 from app.schemas.user import Token, UserCreate, RefreshToken
 from app.services.auth import authenticate_user, create_user, google_authenticate, create_verification_token, verify_email_token
 from app.core.security import create_access_token, create_refresh_token, decode_token
-from app.services.email import send_verification_email
+from app.services.email_service import send_verification_email
 from app.core.config import settings
 from app.models.user import User
 from fastapi_limiter.depends import RateLimiter

@@ -1,7 +1,7 @@
 import pytest
 from app.models.user import User
 from app.services.auth import get_password_hash, create_verification_token
-from app.services.email import send_verification_email
+from app.services.email_service import send_verification_email
 from app.core.config import settings
 from app.core.security import create_refresh_token
 
@@ -25,7 +25,7 @@ def test_user_registration_and_login(client, db):
 
 def test_email_verification(client, db, mocker):
     # Mock send_verification_email function
-    mocker.patch('app.services.email.send_verification_email', return_value=True)
+    mocker.patch('app.services.email_service.send_verification_email', return_value=True)
 
     # Register a new user
     response = client.post(
