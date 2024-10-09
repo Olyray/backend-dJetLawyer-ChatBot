@@ -16,6 +16,7 @@ class TokenUsage(TokenUsageCreate):
 class MonthlyUsage(BaseModel):
     month: datetime
     avg_tokens: float
+    std_dev_tokens: float
 
 class UserMonthlyUsage(BaseModel):
     month: datetime

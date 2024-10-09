@@ -96,7 +96,8 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
 
 
         # Record token usage
-        tokens_used = count_tokens(request.message) + count_tokens(result.get('answer', ''))
+        chat_history_tokens = sum(count_tokens(msg.content) for msg in chat_history)
+        tokens_used = count_tokens(request.message) + count_tokens(result.get('answer', '')) + chat_history_tokens
         token_usage_data = TokenUsageCreate(user_id=current_user.id, tokens_used=tokens_used)
         db_token_usage = TokenUsage(**token_usage_data.dict())
         db.add(db_token_usage)
