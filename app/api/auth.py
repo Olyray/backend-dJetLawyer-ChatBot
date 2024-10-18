@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, 
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_rate_limiter
-from app.schemas.user import Token, UserCreate, RefreshToken
+from app.schemas.user import Token, UserCreate, RefreshToken, GoogleLoginRequest, GoogleToken
 from app.services.auth import authenticate_user, create_user, google_authenticate, create_verification_token, verify_email_token
 from app.core.security import create_access_token, create_refresh_token, decode_token
 from app.services.email_service import send_verification_email
@@ -41,7 +41,6 @@ async def verify_email(
     rate_limiter: RateLimiter = Depends(get_rate_limiter)
 ):
     await rate_limiter(request, response)
-    print(token)
 
     user = verify_email_token(db, token)
     if not user:
@@ -98,11 +97,25 @@ async def refresh_token(
         raise HTTPException(status_code=400, detail="Invalid refresh token")
 
 
-@router.post("/google-login", response_model=Token)
-def google_login(token: str, db: Session = Depends(get_db)):
-    user = google_authenticate(db, token)
+@router.post("/google-login", response_model=GoogleToken)
+async def google_login(token: GoogleLoginRequest, db: Session = Depends(get_db)):
+    user = google_authenticate(db, token.token)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid token or user not found")
+    
     access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    refresh_token = create_refresh_token(data={"sub": user.email})
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user": {
+            "email": user.email,
+            "password": ""
+        },
+        "token_type": "bearer"
+    }
+
 
 @router.post("/logout")
 def logout():
