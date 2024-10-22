@@ -4,6 +4,9 @@ from app.services.auth import get_password_hash, create_verification_token
 from app.services.email_service import send_verification_email
 from app.core.config import settings
 from app.core.security import create_refresh_token
+from unittest.mock import patch
+from app.services import auth as auth_service
+from google.oauth2 import id_token
 
 def test_user_registration_and_login(client, db):
     # Test user registration
@@ -90,25 +93,38 @@ def test_invalid_refresh_token(client, db):
     )
     assert response.status_code == 401
 
+import pytest
+from unittest.mock import patch
 
-"""
 def test_google_login(client, db, mocker):
-    # Mock Google token verification
-    mocker.patch('app.services.auth.id_token.verify_oauth2_token', return_value={
-        "email": "google@example.com",
-        "sub": "google123"
-    })
+    # Mock the google_authenticate function
+    mock_user = User(email="google_user@example.com", google_id="123456789")
+    mocker.patch('app.services.auth.google_authenticate', return_value=mock_user)
 
+    # Mock the id_token.verify_oauth2_token function
+    mock_idinfo = {
+        'email': 'google_user@example.com',
+        'sub': '123456789'
+    }
+    mocker.patch('google.oauth2.id_token.verify_oauth2_token', return_value=mock_idinfo)
+
+    # Test Google login
     response = client.post(
         "/api/v1/auth/google-login",
-        json={"token": "fake_google_token"}
+        json={"token": "mock_google_token"}
     )
+
     assert response.status_code == 200
     assert "access_token" in response.json()
+    assert "refresh_token" in response.json()
     assert response.json()["token_type"] == "bearer"
+    assert response.json()["user"]["email"] == "google_user@example.com"
+    assert response.json()["user"]["password"] == ""
 
-    # Verify user was created in the database
-    user = db.query(User).filter(User.email == "google@example.com").first()
-    assert user is not None
-    assert user.google_id == "google123"
-"""
+
+    # Verify that id_token.verify_oauth2_token was called
+    id_token.verify_oauth2_token.assert_called_once_with(
+        "mock_google_token", 
+        mocker.ANY,  # This represents the requests.Request() object
+        settings.GOOGLE_CLIENT_ID
+    )
