@@ -16,7 +16,6 @@ def create_new_chat(chat: ChatCreate, db: Session = Depends(get_db), current_use
 
 @router.get("/chats", response_model=List[Chat])
 def read_user_chats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    print('getting chats from the API')
     return get_user_chats(db, current_user.id)
 
 @router.get("/chats/{chat_id}", response_model=Chat)
