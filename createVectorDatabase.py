@@ -34,10 +34,10 @@ db = Chroma(persist_directory=persistent_directory, embedding_function=embedding
 
 
 
-
-"""Uncomment the following lines to create or add new documents to the vector store."""
+"""
+# Uncomment the following lines to create or add new documents to the vector store.
 # Load documents
-document_path = "./downloadBlogPosts/blog_pdfs/dJetLawyer_LFN"
+document_path = "./downloadBlogPosts/blog_pdfs/dJetLawyer_LFN/C"
 documents = []
 for filename in os.listdir(document_path):
     if filename.endswith('.pdf'):
@@ -46,7 +46,7 @@ for filename in os.listdir(document_path):
         pdf_docs = loader.load()
         
         # Add URL metadata to each page of the PDF
-        url = pdf_urls.get(f"blog_pdfs/dJetLawyer_LFN/{filename}", "Unknown URL")
+        url = pdf_urls.get(f"blog_pdfs/dJetLawyer_LFN/C/{filename}", "Unknown URL")
         for doc in pdf_docs:
             doc.metadata["source"] = url
         
@@ -73,9 +73,7 @@ else:
     )
     db.persist()    
     print("Vector Store Created successfully")
-
-
-
+"""
 
 
 
