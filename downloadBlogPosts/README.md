@@ -7,3 +7,6 @@
 6. Also modify the search key in `url = pdf_urls.get(f"./blog_pdfs/{filename}", "Unknown URL")` in `../createVectorDatabase.py` to the directory of the file you want to search for. For instance, changing it from `blog_pdfs` to `blog_pdfs/dJetLawyer_LFN`.
 7. Run createVectorDatabase.py to populate the vector database.
 
+
+## For files that are not from the website
+For files that aren't gotten from the website, add the file manually to the target directory. Then add the file and its mapping to the `downloaded_pdfs.json` file.

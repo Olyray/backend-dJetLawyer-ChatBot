@@ -34,7 +34,7 @@ db = Chroma(persist_directory=persistent_directory, embedding_function=embedding
 
 
 
-"""
+
 # Uncomment the following lines to create or add new documents to the vector store.
 # Load documents
 document_path = "./downloadBlogPosts/blog_pdfs/dJetLawyer_LFN/C"
@@ -73,7 +73,7 @@ else:
     )
     db.persist()    
     print("Vector Store Created successfully")
-"""
+
 
 
 
