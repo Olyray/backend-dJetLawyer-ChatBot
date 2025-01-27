@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str
     OPENAI_API_KEY: str
+    PINECONE_API_KEY: str
     MAIL_USERNAME: str
     MAIL_PASSWORD: str
     MAIL_FROM: str = "noreply@djetlawyer.com"
@@ -23,7 +24,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_TIMES: int = 10
     RATE_LIMIT_SECONDS: int = 60
     TESTING: bool
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 20
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     
 
     class Config:

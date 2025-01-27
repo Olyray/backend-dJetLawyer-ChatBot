@@ -23,5 +23,14 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str
 
+class GoogleToken(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
+    user: UserCreate
+
 class RefreshToken(BaseModel):
     refresh_token: str
+
+class GoogleLoginRequest(BaseModel):
+    token: str

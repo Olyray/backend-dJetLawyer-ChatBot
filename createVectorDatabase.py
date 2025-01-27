@@ -32,9 +32,12 @@ embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 db = Chroma(persist_directory=persistent_directory, embedding_function=embeddings)
 
 
-"""
+
+
+
+# Uncomment the following lines to create or add new documents to the vector store.
 # Load documents
-document_path = "./downloadBlogPosts/blog_pdfs"
+document_path = "./downloadBlogPosts/blog_pdfs/dJetLawyer_LFN/C"
 documents = []
 for filename in os.listdir(document_path):
     if filename.endswith('.pdf'):
@@ -43,7 +46,7 @@ for filename in os.listdir(document_path):
         pdf_docs = loader.load()
         
         # Add URL metadata to each page of the PDF
-        url = pdf_urls.get(f"./blog_pdfs/{filename}", "Unknown URL")
+        url = pdf_urls.get(f"blog_pdfs/dJetLawyer_LFN/C/{filename}", "Unknown URL")
         for doc in pdf_docs:
             doc.metadata["source"] = url
         
@@ -57,17 +60,24 @@ splits = text_splitter.split_documents(documents)
 
 
 
-# Create and persist the vector store
-db = Chroma.from_documents(
-    documents=splits,
-    embedding=embeddings,
-    persist_directory=persistent_directory
-)
+# If there is an exisiting vector store, add to it. Otherwise, create a new one.
+if os.path.exists(persistent_directory):
+    db.add_documents(documents=splits)
+    db.persist()    
+    print("Vector Store Updated successfully")
+else:
+    db = Chroma.from_documents(
+        documents=splits,
+        embedding=embeddings,
+        persist_directory=persistent_directory
+    )
+    db.persist()    
+    print("Vector Store Created successfully")
 
 
-db.persist()
-print("Vector Store Created successfully")
-"""
+
+
+
 
 # Create a retriever for querying the vector store
 # `search_type` specifies the type of search (e.g., similarity)

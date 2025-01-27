@@ -5,6 +5,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_pinecone import PineconeEmbeddings, PineconeVectorStore
 
 # Load environment variables
 load_dotenv()
@@ -13,15 +14,21 @@ def initialize_models():
     # Define the persistent directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
     persistent_directory = os.path.join(current_dir, "..", "..", "db", "chroma_db_with_metadata")
+    embeddings = PineconeEmbeddings(
+        model = 'multilingual-e5-large',
+        pinecone_api_key = os.getenv('PINECONE_API_KEY')
+    )
 
     # Initialize embeddings and vector store
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    db = Chroma(persist_directory=persistent_directory, embedding_function=embeddings)
+    db = PineconeVectorStore.from_existing_index(
+            index_name='djetlawyer-chatbot',
+            embedding=embeddings,
+            namespace='djetlawyer-blog-posts'
+        )
 
     # Initialize retriever
     retriever = db.as_retriever(
-        search_type="mmr",
-        search_kwargs={"k": 3, "fetch_k": 10}
+        search_kwargs={"k": 3}
     )
 
     # Initialize ChatOpenAI model

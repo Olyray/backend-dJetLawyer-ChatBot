@@ -16,6 +16,8 @@ from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnablePassthrough, RunnableSequence
 from tiktoken import encoding_for_model 
+from app.schemas.usage import TokenUsageCreate
+from app.models.token_usage import TokenUsage
 
 
 router = APIRouter()
@@ -92,6 +94,15 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
         add_message(db, chat.id, MessageCreate(role="human", content=request.message))
         add_message(db, chat.id, MessageCreate(role="assistant", content=result.get('answer', ''), sources=sources))
 
+
+        # Record token usage
+        chat_history_tokens = sum(count_tokens(msg.content) for msg in chat_history)
+        tokens_used = count_tokens(request.message) + count_tokens(result.get('answer', '')) + chat_history_tokens
+        token_usage_data = TokenUsageCreate(user_id=current_user.id, tokens_used=tokens_used)
+        db_token_usage = TokenUsage(**token_usage_data.dict())
+        db.add(db_token_usage)
+        db.commit()
+        
         return ChatResponse(chat_id=str(chat.id), answer=result['answer'], sources=sources)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
