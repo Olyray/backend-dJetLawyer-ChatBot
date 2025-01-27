@@ -1,0 +1,2 @@
+db/chroma_db_with_metadata/977eb0a4-014f-4c16-be2c-99200696ab15 filter=lfs diff=lfs merge=lfs -text
+db/chroma_db_with_metadata/chroma.sqlite3 filter=lfs diff=lfs merge=lfs -text

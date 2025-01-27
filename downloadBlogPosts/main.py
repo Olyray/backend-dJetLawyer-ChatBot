@@ -10,11 +10,16 @@ with open('urls.json', 'r') as json_file:
     urls = json.load(json_file)
 
 # Directory where PDFs will be saved
-pdf_directory = 'blog_pdfs'
+pdf_directory = 'blog_pdfs/dJetLawyer_LFN/M'
 os.makedirs(pdf_directory, exist_ok=True)
 
 # JSON object to map each downloaded PDF to its URL
-downloaded_pdfs = {}
+downloaded_pdfs_path = './downloaded_pdfs.json'
+if os.path.exists(downloaded_pdfs_path):
+    with open(downloaded_pdfs_path, 'r') as json_file:
+        downloaded_pdfs = json.load(json_file)
+else:
+    downloaded_pdfs = {}
 
 for url in urls:
     response = requests.get(url)
