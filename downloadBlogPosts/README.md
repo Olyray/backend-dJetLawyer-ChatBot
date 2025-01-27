@@ -9,4 +9,4 @@
 
 
 ## For files that are not from the website
-For files that aren't gotten from the website, add the file manually to the target directory. Then add the file and its mapping to the `downloaded_pdfs.json` file.
+For files that aren't gotten from the website, add the file manually to the target directory. Then add the file and its mapping to the `downloaded_pdfs.json` file
