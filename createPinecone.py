@@ -5,7 +5,7 @@ import sys
 import json
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains.retrieval import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain import hub
@@ -14,6 +14,8 @@ from langchain_pinecone import PineconeEmbeddings, PineconeVectorStore
 from langchain.schema import Document
 from langchain_community.document_loaders import PyPDFLoader
 from pinecone import Pinecone, ServerlessSpec
+from tqdm import tqdm
+import random
 
 
 load_dotenv()
@@ -27,7 +29,7 @@ def load_documents ():
         source_mapping = json.load(f)
     
     # Load the PDFs from the specified directory
-    document_path = "./downloadBlogPosts/blog_pdfs/dJetLawyer_LFN/B"
+    document_path = "./downloadBlogPosts/blog_pdfs/"
     documents = []
     for filename in os.listdir(document_path):
         if filename.endswith('.pdf'):
@@ -36,11 +38,7 @@ def load_documents ():
             pdf_docs = loader.load()
 
             # Add URL metadata to each page of the PDF
-            url = source_mapping.get(f"blog_pdfs/dJetLawyer_LFN/B/{filename}", "Unknown URL")
-            """
-            print(f"URL for {filename}: {url}")
-            exit()
-            """
+            url = source_mapping.get(f"./blog_pdfs/{filename}", "Unknown URL")
             for doc in pdf_docs:
                 doc.metadata["source"] = url
             documents.extend(pdf_docs)
@@ -60,16 +58,16 @@ def chunk_source_documents(source):
 
 # Add it to the pinecone vector store
 def add_to_vector_store(chunked_document):
-    embeddings = PineconeEmbeddings(
-        model = 'multilingual-e5-large',
-        pinecone_api_key = os.getenv('PINECONE_API_KEY')
+    embeddings = OpenAIEmbeddings(
+        model = 'text-embedding-3-small',
+        openai_api_key = os.getenv('OPENAI_API_KEY')
     )
     pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
     index_name = 'djetlawyer-chatbot'
     if index_name not in pc.list_indexes().names():
         pc.create_index(
             name=index_name,
-            dimension=embeddings.dimension,
+            dimension=1536,
             metric='cosine',
             spec=ServerlessSpec(cloud = 'aws', region='us-east-1')
         )
@@ -77,12 +75,43 @@ def add_to_vector_store(chunked_document):
             time.sleep(1)
     if len(sys.argv) > 1 and sys.argv[1] == 'load_data':
         print('Loading data into Pinecone')
-        docsearch = PineconeVectorStore.from_documents(
-            documents=chunked_document,
+        docsearch = PineconeVectorStore.from_existing_index(
             index_name=index_name,
             embedding=embeddings,
             namespace='djetlawyer-blog-posts'
         )
+
+        # load the json of saved sources
+        try:
+            with open('added_document.json', 'r') as file:
+                added_documents = json.load(file)
+        except FileNotFoundError:
+            added_documents = []
+        # Filter out documents that haven't been uploaded
+        not_uploaded = [ doc for doc in chunked_document if doc.metadata["source"] not in added_documents ]
+        # Now use tdqm to add the documents that haven't been filtered. 
+        batch_size = 100
+
+        for i in tqdm(range(0, len(not_uploaded), batch_size)):
+            documents_to_add = not_uploaded[i: i + batch_size]
+            sources_to_be_added = [ doc.metadata["source"] for doc in documents_to_add ]
+            try:
+                docsearch.add_documents(documents_to_add)
+            except Exception as e:
+                print(f"Error adding documents: {e}")
+                print("waiting before retrying...")
+                time.sleep(60)
+            try:
+                with open('added_documents.json', 'r') as file:
+                    existing_sources = json.load(file)
+            except FileNotFoundError:
+                    existing_sources = []
+            new_and_existing_sources = list(set(existing_sources + sources_to_be_added))
+            new_and_existing_sources.sort()
+            with open('added_documents.json', 'w') as file:
+                json.dump(new_and_existing_sources, file, indent=4)
+            # time.sleep(random.uniform(5, 10))
+    
         print('Loaded data into Pinecone')
     else:
         print('Using existing index')

@@ -35,4 +35,3 @@ For production deployment, consider the following:
 4. Set up proper logging
 5. Configure a production-ready database
 6. Set up monitoring and error tracking
-
