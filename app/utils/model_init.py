@@ -14,9 +14,9 @@ def initialize_models():
     # Define the persistent directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
     persistent_directory = os.path.join(current_dir, "..", "..", "db", "chroma_db_with_metadata")
-    embeddings = PineconeEmbeddings(
-        model = 'multilingual-e5-large',
-        pinecone_api_key = os.getenv('PINECONE_API_KEY')
+    embeddings = OpenAIEmbeddings(
+        model = 'text-embedding-3-small',
+        openai_api_key = os.getenv('OPENAI_API_KEY')
     )
 
     # Initialize embeddings and vector store

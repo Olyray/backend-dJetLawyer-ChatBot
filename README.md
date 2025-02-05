@@ -35,3 +35,10 @@ For production deployment, consider the following:
 4. Set up proper logging
 5. Configure a production-ready database
 6. Set up monitoring and error tracking
+
+
+## Files
+
+1. createPineCone.py: This is the script for uploading files to pinecone. Usage is `python createPineCone.py load_data` to add data to the pinecone vector store. `python createPineCone.py` to test what has been uploaded to the vector store.
+
+2. createVectorDatabase.py: This is the script for creating the local Chroma Vector database. It has been deprecated because I am no longer using a local Chroma vector database.
