@@ -19,7 +19,7 @@ def get_allowed_origins():
         ]
     elif settings.ENVIRONMENT == "staging":
         return [
-            "https://staging-chatbotfrontend-1f183cbd5331.herokuapp.com/"
+            "https://staging-chatbotfrontend-1f183cbd5331.herokuapp.com/",
         ]
     else:  # development
         return [
