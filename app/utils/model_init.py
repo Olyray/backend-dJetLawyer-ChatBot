@@ -34,6 +34,7 @@ def initialize_models():
     # Initialize ChatOpenAI model
     llm = ChatOpenAI(model="gpt-4o")
 
+    """
     # Contextualize question prompt
     contextualize_q_system_prompt = (
         "Given a chat history (which might be summarized) and the latest user question "
@@ -56,6 +57,7 @@ def initialize_models():
     history_aware_retriever = create_history_aware_retriever(
         llm, retriever, contextualize_q_prompt
     )
+    """
 
     # Answer question prompt
     qa_system_prompt = (
@@ -63,7 +65,8 @@ def initialize_models():
          You are a knowledgeable Nigerian lawyer. Law students and lawyers would ask you questions, and you're to answer from the documents provided. 
         All your responses must be backed up with Nigerian legal authorities. This means that you must either provide Nigerian statutes or case law to support your position. 
         If you need to find statutes or case law to support your position, check the context I have attached.
-        If a chat history summary is provided, use it to maintain context of the conversation.
+        Use the chat history to maintain context of the conversation and understand any references to previous messages.
+        If the user's question refers to something mentioned earlier, use the chat history to understand the context.
         """
         "\n\n"
         "{context}"
@@ -81,6 +84,6 @@ def initialize_models():
     question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
 
     # Create retrieval chain
-    rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+    rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
     return rag_chain
