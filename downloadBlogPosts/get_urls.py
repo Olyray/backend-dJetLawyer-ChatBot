@@ -38,7 +38,7 @@ def save_urls_to_json(urls, filename):
 def main():
     # Modified: Added input for URL and start letter
     url = "https://djetlawyer.com/index-to-the-laws-of-the-federation-of-nigeria/"
-    start_letter = "S"
+    start_letter = "U"
 
     try:
         filtered_urls = get_links_starting_with(url, start_letter)

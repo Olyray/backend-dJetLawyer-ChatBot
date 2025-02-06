@@ -29,7 +29,7 @@ def load_documents ():
         source_mapping = json.load(f)
     
     # Load the PDFs from the specified directory
-    document_path = "./downloadBlogPosts/blog_pdfs/"
+    document_path = "./downloadBlogPosts/blog_pdfs/dJetLawyer_LFN/C"
     documents = []
     for filename in os.listdir(document_path):
         if filename.endswith('.pdf'):
@@ -38,7 +38,7 @@ def load_documents ():
             pdf_docs = loader.load()
 
             # Add URL metadata to each page of the PDF
-            url = source_mapping.get(f"./blog_pdfs/{filename}", "Unknown URL")
+            url = source_mapping.get(f"blog_pdfs/dJetLawyer_LFN/C/{filename}", "Unknown URL")
             for doc in pdf_docs:
                 doc.metadata["source"] = url
             documents.extend(pdf_docs)
