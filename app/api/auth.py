@@ -62,6 +62,7 @@ async def login(
     rate_limiter: RateLimiter = Depends(get_rate_limiter)
 ):
     await rate_limiter(request, response)
+    print(f"origin: {request.headers.get('origin')} ")
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
