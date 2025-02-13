@@ -42,7 +42,7 @@ def get_allowed_origins():
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["https://staging-chatbotfrontend-1f183cbd5331.herokuapp.com", "https://chat.djetlawyer.com", "http://localhost:3000", "http://127.0.0.1:3000"],  # Allows all origins
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
