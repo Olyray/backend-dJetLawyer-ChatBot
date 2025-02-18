@@ -6,6 +6,7 @@ from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_pinecone import PineconeEmbeddings, PineconeVectorStore
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 # Load environment variables
 load_dotenv()
@@ -31,10 +32,17 @@ def initialize_models():
         search_kwargs={"k": 3}
     )
 
+
+    llm = ChatGoogleGenerativeAI(
+        google_api_key=os.getenv('GEMINI_API_KEY'),
+        model='gemini-2.0-flash',
+        temperature=0.5
+    )
+
+    """
     # Initialize ChatOpenAI model
     llm = ChatOpenAI(model="gpt-4o")
 
-    """
     # Contextualize question prompt
     contextualize_q_system_prompt = (
         "Given a chat history (which might be summarized) and the latest user question "
