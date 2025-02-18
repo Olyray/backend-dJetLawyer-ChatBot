@@ -11,7 +11,7 @@ class SecureHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'"
+        response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' https: data:; frame-ancestors 'none'"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         return response
 
@@ -42,7 +42,7 @@ def get_allowed_origins():
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://staging-chatbotfrontend-1f183cbd5331.herokuapp.com", "https://chat.djetlawyer.com", "http://localhost:3000", "http://127.0.0.1:3000"],  # Allows all origins
+    allow_origins=["https://staging-chatbotfrontend-1f183cbd5331.herokuapp.com", "https://chat.djetlawyer.com", "http://localhost:3000", "http://127.0.0.1:3000", "http://127.0.0.1:8000"],  # Allows all origins
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers

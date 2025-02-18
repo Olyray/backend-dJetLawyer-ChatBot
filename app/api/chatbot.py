@@ -1,11 +1,12 @@
 __import__('pysqlite3')
 import sys
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+import os
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from app.schemas.chatbot import ChatRequest, ChatResponse, Source
 from app.utils.model_init import initialize_models
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.services.chat import add_message, get_chat, create_chat, get_chat_messages
@@ -15,6 +16,7 @@ import json
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnablePassthrough, RunnableSequence
+from langchain_google_genai import ChatGoogleGenerativeAI
 from tiktoken import encoding_for_model 
 from app.schemas.usage import TokenUsageCreate
 from app.models.token_usage import TokenUsage
@@ -24,7 +26,11 @@ router = APIRouter()
 
 # Initialize the RAG chain
 rag_chain = initialize_models()
-llm = ChatOpenAI(temperature=0.7)
+llm = ChatGoogleGenerativeAI(
+    google_api_key=os.getenv('GEMINI_API_KEY'),
+    model='gemini-2.0-flash',
+    temperature=0.5
+)
 
 # Define the title template and chain
 title_template = PromptTemplate.from_template("Summarize the following message in 5 words or less to create a chat title: {message}")
@@ -77,7 +83,9 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
         else:
             # Convert chat history to the format expected by the chain
             chat_history = [
-                (HumanMessage if msg.role == "human" else SystemMessage)(content=msg.content)
+                HumanMessage(content=msg.content) if msg.role == "human" 
+                else AIMessage(content=msg.content) if msg.role == "assistant"
+                else SystemMessage(content=msg.content)
                 for msg in messages
             ]
 
@@ -105,4 +113,5 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
         
         return ChatResponse(chat_id=str(chat.id), answer=result['answer'], sources=sources)
     except Exception as e:
+        print(f"Status Code: 500, Detail: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

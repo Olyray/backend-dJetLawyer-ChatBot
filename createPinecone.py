@@ -13,6 +13,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_pinecone import PineconeEmbeddings, PineconeVectorStore
 from langchain.schema import Document
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_google_genai import ChatGoogleGenerativeAI
 from pinecone import Pinecone, ServerlessSpec
 from tqdm import tqdm
 import random
@@ -129,9 +130,15 @@ def add_to_vector_store(chunked_document):
 def create_chatbot(vector_store):
     retriever = vector_store.as_retriever(search_kwargs={'k': 3})
 
-    llm = ChatOpenAI(
-        openai_api_key=os.getenv('OPENAI_API_KEY'),
-        model_name='gpt-4o-mini',
+    # llm = ChatOpenAI(
+    #     openai_api_key=os.getenv('OPENAI_API_KEY'),
+    #     model_name='gpt-4o-mini',
+    #     temperature=0.5
+    # )
+
+    llm = ChatGoogleGenerativeAI(
+        google_api_key=os.getenv('GEMINI_API_KEY'),
+        model='gemini-2.0-flash',
         temperature=0.5
     )
 
