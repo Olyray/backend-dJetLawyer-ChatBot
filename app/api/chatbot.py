@@ -79,7 +79,7 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db), current_user
         # If total tokens exceed 3000, summarize the chat history
         if total_tokens > 1500:
             summary = summarize_chat_history(messages)
-            chat_history = [SystemMessage(content=f"Chat history summary: {summary}")]
+            chat_history = [HumanMessage(content=f"Chat history summary: {summary}")]
         else:
             # Convert chat history to the format expected by the chain
             chat_history = [
