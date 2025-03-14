@@ -15,4 +15,5 @@ class Source(BaseModel):
 class ChatResponse(BaseModel):
     chat_id: str
     answer: str
-    sources: List[Source]
+    sources: List[Source] = []
+    limit_reached: bool = False

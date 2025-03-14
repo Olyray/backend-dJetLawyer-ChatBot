@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status, Request, Response
+from fastapi import Depends, HTTPException, status, Request, Response, Header
 from fastapi.security import OAuth2PasswordBearer
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.user import User
+from typing import Optional
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
@@ -46,4 +47,36 @@ def get_rate_limiter():
         limiter = RateLimiter(times=settings.RATE_LIMIT_TIMES, seconds=settings.RATE_LIMIT_SECONDS)
         await limiter(request, response)
     return rate_limit
+
+def optional_oauth2_scheme(
+    authorization: Optional[str] = Header(None)
+) -> Optional[str]:
+    if not authorization:
+        return None
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            return None
+        return token
+    except ValueError:
+        return None
+
+async def get_optional_current_user(
+    db: Session = Depends(get_db),
+    token: str = Depends(optional_oauth2_scheme)
+) -> Optional[User]:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            return None
+    except JWTError:
+        return None
+    
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        return None
+    return user
 
