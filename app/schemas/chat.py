@@ -27,13 +27,26 @@ class ChatBase(BaseModel):
     title: str
 
 class ChatCreate(ChatBase):
-    pass
+    id: Optional[uuid.UUID] = None
+
+class ShareChat(BaseModel):
+    is_shared: bool = True
 
 class Chat(ChatBase):
     id: uuid.UUID
     user_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    is_shared: bool = False
+    messages: List[Message] = []
+
+    class Config:
+        from_attributes = True
+
+class PublicChat(BaseModel):
+    id: uuid.UUID
+    title: str
+    created_at: datetime
     messages: List[Message] = []
 
     class Config:
