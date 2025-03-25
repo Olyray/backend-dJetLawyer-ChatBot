@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey, DateTime, JSON, ARRAY
+from sqlalchemy import Column, String, ForeignKey, DateTime, JSON, ARRAY, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.base import Base
@@ -13,6 +13,7 @@ class Chat(Base):
     title = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_shared = Column(Boolean, default=False)
 
     user = relationship("User", back_populates="chats")
     messages = relationship("Message", back_populates="chat")

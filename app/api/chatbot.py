@@ -5,11 +5,12 @@ import os
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from app.schemas.chatbot import ChatRequest, ChatResponse, Source
+from app.schemas.chat import PublicChat
 from app.utils.model_init import initialize_models
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from app.core.deps import get_db, get_current_user, get_optional_current_user
 from app.models.user import User
-from app.services.chat import add_message, get_chat, create_chat, get_chat_messages
+from app.services.chat import add_message, get_chat, create_chat, get_chat_messages, save_anonymous_chat_to_db
 from app.schemas.chat import ChatCreate, MessageCreate
 import uuid
 import json
@@ -64,6 +65,12 @@ def summarize_chat_history(chat_history):
     
     return summary_chain.invoke({"chat_history": "\n".join(formatted_history)})
 
+# At the top of the file or in an appropriate scope
+def get_chat_id(chat_obj):
+    if isinstance(chat_obj, dict):
+        return chat_obj["id"]
+    else:
+        return chat_obj.id
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
@@ -75,7 +82,6 @@ async def chat(
     try:
         # Get or create anonymous session ID from request headers
         anonymous_session_id = request.headers.get('x-anonymous-session-id')
-        print(f"Request headers: {request.headers}")
         print(f"Anonymous session ID: {anonymous_session_id}")
         print(f"Current user: {current_user}")
         print(f"Chat ID: {chat_request.chat_id}")
@@ -98,22 +104,59 @@ async def chat(
             
             # Increment message count
             await increment_anonymous_message_count(anonymous_session_id)
+
+            # Get the previous messages from the shared chat for anonymous users
+            previous_messages = getattr(chat_request, 'previous_messages', None)
         
-        # Process the chat request
+        # Get the previous messages from the shared chat for logged in users
+        previous_messages = getattr(chat_request, 'previous_messages', None)
+
+        # If there's a chat ID, usually in subsequent anonymous messages
         if chat_request.chat_id:
             try:
                 chat_request.chat_id = uuid.UUID(chat_request.chat_id)
             except ValueError:
                 # If chat_id is not a valid UUID, create a new chat
                 if current_user:
-                    chat_title = title_chain.invoke({"message": chat_request.message})
-                    chat = create_chat(db, current_user.id, ChatCreate(title=chat_title))
-                    messages = []
+                    # For continuing from a shared chat with previous messages
+                    if previous_messages:
+                        chat_title = "Continued from shared chat"
+                        if len(previous_messages) > 0:
+                            chat_title = previous_messages[0].get('content', '')[:30] + "..."
+                        
+                        chat = create_chat(db, current_user.id, ChatCreate(title=chat_title))
+                        
+                        # Add previous messages to the new chat
+                        for msg in previous_messages:
+                            add_message(db, chat.id, MessageCreate(
+                                role=msg.get('role', ''),
+                                content=msg.get('content', '')
+                            ))
+                        
+                        messages = get_chat_messages(db, chat.id)
+                    else:
+                        chat_title = title_chain.invoke({"message": chat_request.message})
+                        chat = create_chat(db, current_user.id, ChatCreate(title=chat_title))
+                        messages = []
                 else:
+                    # Create anonymous chat on Redis
                     chat = {"id": uuid.uuid4()}
-                    messages = []
-                
-                print(f"Created new chat with ID: {chat.id}")
+                    
+                    # If we have previous messages from a shared chat, use them
+                    if previous_messages:
+                        messages = [
+                            {
+                                "id": str(uuid.uuid4()),
+                                "chat_id": str(chat["id"]),
+                                "role": msg.get("role", ""),
+                                "content": msg.get("content", ""),
+                                "created_at": datetime.utcnow().isoformat()
+                            }
+                            for msg in previous_messages
+                        ]
+                    else:
+                        messages = []
+                print("Created new chat with ID: ", get_chat_id(chat))
                 return await process_chat(
                     current_user, anonymous_session_id, chat, messages, 
                     chat_request.message, title_chain, db
@@ -139,7 +182,7 @@ async def chat(
                         if len(anon_messages) > 0 and anon_messages[0]['role'] == 'human':
                             chat_title = anon_messages[0]['content'][:30] + "..."
                         
-                        chat = create_chat(db, current_user.id, ChatCreate(title=chat_title))
+                        chat = create_chat(db, current_user.id, ChatCreate(title=chat_title, id=chat_request.chat_id))
                         print(f"Created new chat for transfer with ID: {chat.id}")
                         
                         # Add all anonymous messages to the new chat
@@ -177,9 +220,9 @@ async def chat(
                 else:
                     chat = {"id": chat_request.chat_id}
         else:
-            # No chat ID provided, create a new chat
+            # If there's no chat ID, usually in the first message sent to the chatbot
             if current_user:
-                # Create new chat for authenticated users
+                # Create new chat for logged in users
                 chat_title = title_chain.invoke({"message": chat_request.message})
                 chat = create_chat(db, current_user.id, ChatCreate(title=chat_title))
                 messages = []
@@ -226,13 +269,6 @@ async def process_chat(current_user, anonymous_session_id, chat, messages, messa
         {"url": doc.metadata.get('source', 'Unknown')}
         for doc in result['context']
     ]
-
-    # Helper function to get chat ID regardless of object type
-    def get_chat_id(chat_obj):
-        if isinstance(chat_obj, dict):
-            return chat_obj["id"]
-        else:
-            return chat_obj.id
 
     if current_user:
         # Save messages to database for authenticated users
@@ -281,3 +317,33 @@ async def process_chat(current_user, anonymous_session_id, chat, messages, messa
         await save_anonymous_chat_messages(anonymous_session_id, str(get_chat_id(chat)), new_messages)
     
     return ChatResponse(chat_id=str(get_chat_id(chat)), answer=result['answer'], sources=sources)
+
+
+@router.post("/share-anonymous-chat", response_model=PublicChat)
+async def share_anonymous_chat(
+    request: Request,
+    chat_data: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Share an anonymous chat by saving it to the database and making it publicly accessible.
+    
+    This takes the messages from Redis and saves them permanently in the database.
+    """
+    session_id = chat_data.get("session_id")
+    chat_id = chat_data.get("chat_id")
+    title = chat_data.get("title", "Anonymous Chat")
+    
+    if not session_id or not chat_id:
+        raise HTTPException(status_code=400, detail="Session ID and Chat ID are required")
+    
+    # Get the messages from Redis
+    messages = await get_anonymous_chat_messages(session_id, chat_id)
+    
+    if not messages:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Save the chat to the database
+    db_chat = save_anonymous_chat_to_db(db, title, messages)
+    
+    return db_chat

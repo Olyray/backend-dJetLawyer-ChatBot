@@ -3,6 +3,9 @@ from app.models.chat import Chat, Message
 from app.core.security import create_access_token
 from app.services.auth import get_password_hash
 from uuid import UUID
+import pytest
+import uuid
+from datetime import datetime
 
 def test_chatbot_interaction(client, db, mocker):
     # Create a test user and chat
@@ -46,3 +49,60 @@ def test_chatbot_interaction(client, db, mocker):
     assert messages[0].content == "What is the meaning of life?"
     assert messages[1].role == "assistant"
     assert messages[1].content == "This is a mocked response from the AI."
+
+@pytest.mark.asyncio
+async def test_share_anonymous_chat(client, monkeypatch):
+    # Mock the anonymous chat service functions
+    async def mock_get_anonymous_messages(*args, **kwargs):
+        return [
+            {
+                "id": str(uuid.uuid4()),
+                "chat_id": str(uuid.uuid4()),
+                "role": "human",
+                "content": "This is an anonymous message",
+                "created_at": datetime.utcnow().isoformat()
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "chat_id": str(uuid.uuid4()),
+                "role": "assistant",
+                "content": "This is a response to the anonymous message",
+                "created_at": datetime.utcnow().isoformat(),
+                "sources": [{"url": "https://example.com"}]
+            }
+        ]
+
+    # Mock the database save function
+    def mock_save_anonymous_chat_to_db(*args, **kwargs):
+        # Create a mock chat with the same data structure as a real chat
+        mock_chat_id = uuid.uuid4()
+        return {
+            "id": mock_chat_id,
+            "title": args[1],  # Get title from arguments
+            "created_at": datetime.utcnow().isoformat(),
+            "messages": mock_get_anonymous_messages(None, None)
+        }
+
+    # Apply the mocks
+    monkeypatch.setattr("app.api.chatbot.get_anonymous_chat_messages", mock_get_anonymous_messages)
+    monkeypatch.setattr("app.api.chatbot.save_anonymous_chat_to_db", mock_save_anonymous_chat_to_db)
+
+    # Test sharing an anonymous chat
+    response = await client.post(
+        "/api/share-anonymous-chat",
+        json={
+            "session_id": "test-session",
+            "chat_id": "test-chat-id",
+            "title": "Anonymous Chat Title"
+        }
+    )
+    
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Verify the response
+    assert data["title"] == "Anonymous Chat Title"
+    assert len(data["messages"]) == 2
+    assert data["messages"][0]["content"] == "This is an anonymous message"
+    assert data["messages"][1]["content"] == "This is a response to the anonymous message"
+    assert data["messages"][1]["sources"][0]["url"] == "https://example.com"
