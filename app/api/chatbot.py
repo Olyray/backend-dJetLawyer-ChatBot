@@ -54,9 +54,6 @@ async def chat(
     try:
         # Get anonymous session ID from request headers
         anonymous_session_id = request.headers.get('x-anonymous-session-id')
-        print(f"Anonymous session ID: {anonymous_session_id}")
-        print(f"Current user: {current_user}")
-        print(f"Chat ID: {chat_request.chat_id}")
         
         # Validate anonymous user and check message limits
         if not current_user:
@@ -85,7 +82,8 @@ async def chat(
                 # Process the chat immediately for new chats with invalid UUIDs
                 return await process_chat(
                     current_user, anonymous_session_id, chat, messages, 
-                    chat_request.message, title_chain, db, rag_chain
+                    chat_request.message, title_chain, db, rag_chain,
+                    attachments=chat_request.attachments
                 )
         else:
             # No chat ID provided, create a new chat
@@ -96,7 +94,8 @@ async def chat(
         # Process the chat and return response
         return await process_chat(
             current_user, anonymous_session_id, chat, messages, 
-            chat_request.message, title_chain, db, rag_chain
+            chat_request.message, title_chain, db, rag_chain,
+            attachments=chat_request.attachments
         )
         
     except Exception as e:

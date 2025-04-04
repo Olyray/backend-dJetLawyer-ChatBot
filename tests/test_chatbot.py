@@ -72,15 +72,33 @@ async def test_share_anonymous_chat(client, monkeypatch):
             }
         ]
 
-    # Mock the database save function
+    # Add a sync version for your mock
+    def mock_get_anonymous_messages_sync(*args, **kwargs):
+        return [
+            {
+                "id": str(uuid.uuid4()),
+                "chat_id": str(uuid.uuid4()),
+                "role": "human",
+                "content": "This is an anonymous message",
+                "created_at": datetime.utcnow().isoformat()
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "chat_id": str(uuid.uuid4()),
+                "role": "assistant",
+                "content": "This is a response to the anonymous message",
+                "created_at": datetime.utcnow().isoformat(),
+                "sources": [{"url": "https://example.com"}]
+            }
+        ]
+
     def mock_save_anonymous_chat_to_db(*args, **kwargs):
-        # Create a mock chat with the same data structure as a real chat
         mock_chat_id = uuid.uuid4()
         return {
             "id": mock_chat_id,
-            "title": args[1],  # Get title from arguments
+            "title": args[1],
             "created_at": datetime.utcnow().isoformat(),
-            "messages": mock_get_anonymous_messages(None, None)
+            "messages": mock_get_anonymous_messages_sync(None, None)  # Use the sync version
         }
 
     # Apply the mocks
@@ -88,8 +106,8 @@ async def test_share_anonymous_chat(client, monkeypatch):
     monkeypatch.setattr("app.api.chatbot.save_anonymous_chat_to_db", mock_save_anonymous_chat_to_db)
 
     # Test sharing an anonymous chat
-    response = await client.post(
-        "/api/share-anonymous-chat",
+    response = client.post(
+        "/api/v1/chatbot/share-anonymous-chat",
         json={
             "session_id": "test-session",
             "chat_id": "test-chat-id",

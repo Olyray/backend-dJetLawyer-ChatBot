@@ -4,16 +4,19 @@ This module contains functions for managing chat history, token counting, and ge
 """
 
 import uuid
+import os
 from datetime import datetime
 from typing import Dict, List, Any
 from sqlalchemy.orm import Session
 
-from app.schemas.chatbot import ChatResponse
+from app.schemas.chatbot import ChatResponse, AttachmentData
 from app.schemas.chat import MessageCreate
 from app.schemas.usage import TokenUsageCreate
 from app.models.token_usage import TokenUsage
+from app.models.attachment import Attachment
 from app.services.chat import add_message
 from app.services.anonymous_chat import save_anonymous_chat_messages
+from app.services.file_storage import encode_file_to_base64, extract_text_from_document, UPLOAD_DIR
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 def get_chat_id(chat_obj):
@@ -95,6 +98,73 @@ def prepare_chat_history(messages: List) -> List:
     
     return chat_history
 
+async def process_attachments(db: Session, attachments: List[AttachmentData]) -> tuple:
+    """
+    Process attachments and prepare them for inclusion in the LLM message.
+    
+    Args:
+        db: Database session
+        attachments: List of attachment data
+        
+    Returns:
+        Tuple of (attachment_content, attachments_for_message)
+    """
+    # For storing attachments that will be saved to the database
+    attachments_for_message = []
+    
+    # For document text content
+    text_content = []
+    
+    # For image attachments
+    image_content = []
+    
+    for attachment_data in attachments:
+        # Get attachment details from database
+        attachment_id = uuid.UUID(attachment_data.id)
+        attachment = db.query(Attachment).filter(Attachment.id == attachment_id).first()
+        
+        if not attachment:
+            print(f"Attachment not found: {attachment_data.id}")
+            continue
+            
+        # Add to attachments that will be associated with the message
+        attachments_for_message.append(attachment)
+            
+        file_path = os.path.join(UPLOAD_DIR, attachment.file_path)
+        
+        # Process based on file type
+        if attachment.file_type.startswith('image/'):
+            # For images, add to image content list in the format expected by the LLM
+            image_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{attachment.file_type};base64,{encode_file_to_base64(file_path)}"
+                }
+            })
+        else:
+            # For documents, extract text content
+            document_text = await extract_text_from_document(file_path)
+            if document_text:
+                # Add as text content with document reference
+                text_content.append(f"\nContent from document '{attachment.file_name}':\n{document_text}")
+    
+    # Format all attachments for the model
+    attachment_content = []
+    
+    # Add all document text with a role if needed
+    if text_content:
+        attachment_content.append(
+            ("human", [{"type": "text", "text": "\n".join(text_content)}])
+        )
+    
+    # Add images with the same pattern
+    if image_content:
+        attachment_content.append(
+            ("human", image_content)
+        )
+    
+    return attachment_content, attachments_for_message
+
 async def process_chat(
     current_user, 
     anonymous_session_id, 
@@ -103,7 +173,8 @@ async def process_chat(
     message, 
     title_chain, 
     db: Session,
-    rag_chain
+    rag_chain,
+    attachments: List[AttachmentData] = None
 ):
     """
     Process the chat message and return a response.
@@ -117,6 +188,7 @@ async def process_chat(
         title_chain: Chain for generating chat titles
         db: Database session
         rag_chain: The retrieval chain for generating responses
+        attachments: Optional list of attachments
         
     Returns:
         ChatResponse object with the model's response
@@ -124,8 +196,19 @@ async def process_chat(
     # Prepare the chat history
     chat_history = prepare_chat_history(messages)
 
+    # Process attachments if provided
+    attachment_content = []
+    attachments_for_message = []
+    
+    if attachments:
+        attachment_content, attachments_for_message = await process_attachments(db, attachments)
+    
     # Process the user's query through the retrieval chain
-    result = rag_chain.invoke({"input": message, "chat_history": chat_history})
+    result = rag_chain.invoke({
+        "input": message,
+        "chat_history": chat_history,
+        "attachments": attachment_content
+    })
 
     # Extract sources from the context
     sources = [
@@ -135,8 +218,13 @@ async def process_chat(
 
     if current_user:
         # Save messages to database for authenticated users
-        add_message(db, chat.id, MessageCreate(role="human", content=message))
-        add_message(db, chat.id, MessageCreate(role="assistant", content=result.get('answer', ''), sources=sources))
+        human_message = add_message(db, chat.id, MessageCreate(role="human", content=message))
+        ai_message = add_message(db, chat.id, MessageCreate(role="assistant", content=result.get('answer', ''), sources=sources))
+        
+        # Update attachment records with message_id
+        for attachment in attachments_for_message:
+            attachment.message_id = human_message.id
+        db.commit()
         
         # Record token usage
         chat_history_tokens = sum(count_tokens(msg['content'] if isinstance(msg, dict) else msg.content) for msg in chat_history)
@@ -159,6 +247,16 @@ async def process_chat(
                 # If it's already a dict, use it as is
                 messages_as_dicts.append(msg)
         
+        # Create attachments data for storage
+        attachments_data = []
+        for attachment in attachments_for_message:
+            attachments_data.append({
+                "id": str(attachment.id),
+                "file_name": attachment.file_name,
+                "file_type": attachment.file_type,
+                "file_size": attachment.file_size
+            })
+        
         # Add new messages
         new_messages = messages_as_dicts + [
             {
@@ -167,7 +265,8 @@ async def process_chat(
                 "role": "human",
                 "content": message,
                 "created_at": current_time,
-                "sources": None
+                "sources": None,
+                "attachments": attachments_data if attachments_data else None
             },
             {
                 "id": str(uuid.uuid4()),
