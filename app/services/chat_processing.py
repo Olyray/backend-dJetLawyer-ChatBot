@@ -203,8 +203,6 @@ async def process_chat(
     if attachments:
         attachment_content, attachments_for_message = await process_attachments(db, attachments)
     
-    print(attachment_content)
-    
     # Process the user's query through the retrieval chain
     result = rag_chain.invoke({
         "input": message,
