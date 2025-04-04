@@ -29,3 +29,4 @@ class Message(Base):
     sources = Column(ARRAY(JSON), nullable=True)
 
     chat = relationship("Chat", back_populates="messages")
+    attachments = relationship("Attachment", back_populates="message", cascade="all, delete-orphan")

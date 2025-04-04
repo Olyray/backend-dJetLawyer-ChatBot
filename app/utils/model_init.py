@@ -85,6 +85,7 @@ def initialize_models():
             ("system", qa_system_prompt),
             MessagesPlaceholder("chat_history"),
             ("human", "{input}"),
+            ("placeholder", "{attachments}")
         ]
     )
 
