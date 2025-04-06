@@ -12,7 +12,7 @@ from app.core.config import settings
 # Define constants for file storage
 UPLOAD_DIR = os.path.join(os.getcwd(), "uploads")
 MAX_DOCUMENT_SIZE = 5 * 1024 * 1024  # 5MB
-MAX_IMAGE_SIZE = 2 * 1024 * 1024  # 2MB
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_DOCUMENT_TYPES = [
     "application/pdf", 
     "application/msword", 
@@ -67,7 +67,6 @@ def validate_file(file: UploadFile, file_type: str) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    print(f"File type: {file_type}")
     if file_type == "document":
         if file.content_type not in ALLOWED_DOCUMENT_TYPES:
             return False
@@ -80,7 +79,6 @@ def validate_file(file: UploadFile, file_type: str) -> bool:
     elif file_type == "image":
         # More flexible approach: accept any content type that starts with "image/"
         if not file.content_type.startswith("image/"):
-            print(f"File content type: {file.content_type}")
             return False
         file.file.seek(0, os.SEEK_END)
         size = file.file.tell()
