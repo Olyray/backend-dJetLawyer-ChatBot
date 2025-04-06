@@ -67,6 +67,7 @@ def validate_file(file: UploadFile, file_type: str) -> bool:
     Returns:
         True if valid, False otherwise
     """
+    print(f"File type: {file_type}")
     if file_type == "document":
         if file.content_type not in ALLOWED_DOCUMENT_TYPES:
             return False
