@@ -79,6 +79,7 @@ def validate_file(file: UploadFile, file_type: str) -> bool:
     elif file_type == "image":
         # More flexible approach: accept any content type that starts with "image/"
         if not file.content_type.startswith("image/"):
+            print(f"File content type: {file.content_type}")
             return False
         file.file.seek(0, os.SEEK_END)
         size = file.file.tell()
