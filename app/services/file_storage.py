@@ -77,7 +77,8 @@ def validate_file(file: UploadFile, file_type: str) -> bool:
         if size > MAX_DOCUMENT_SIZE:
             return False
     elif file_type == "image":
-        if file.content_type not in ALLOWED_IMAGE_TYPES:
+        # More flexible approach: accept any content type that starts with "image/"
+        if not file.content_type.startswith("image/"):
             return False
         file.file.seek(0, os.SEEK_END)
         size = file.file.tell()
