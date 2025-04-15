@@ -118,6 +118,9 @@ async def process_attachments(db: Session, attachments: List[AttachmentData]) ->
     # For image attachments
     image_content = []
     
+    # For audio attachments
+    audio_content = []
+    
     for attachment_data in attachments:
         # Get attachment details from database
         attachment_id = uuid.UUID(attachment_data.id)
@@ -141,6 +144,13 @@ async def process_attachments(db: Session, attachments: List[AttachmentData]) ->
                     "url": f"data:{attachment.file_type};base64,{encode_file_to_base64(file_path)}"
                 }
             })
+        elif attachment.file_type.startswith('audio/'):
+            # For audio, use media type which is supported by Gemini API
+            audio_content.append({
+                "type": "media",
+                "mime_type": attachment.file_type,
+                "data": encode_file_to_base64(file_path)
+            })
         else:
             # For documents, extract text content
             document_text = await extract_text_from_document(file_path)
@@ -161,6 +171,12 @@ async def process_attachments(db: Session, attachments: List[AttachmentData]) ->
     if image_content:
         attachment_content.append(
             ("human", image_content)
+        )
+        
+    # Add audio with the same pattern
+    if audio_content:
+        attachment_content.append(
+            ("human", audio_content)
         )
     
     return attachment_content, attachments_for_message
