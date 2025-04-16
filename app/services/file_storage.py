@@ -22,7 +22,7 @@ ALLOWED_DOCUMENT_TYPES = [
     "text/plain"
 ]
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
-ALLOWED_AUDIO_TYPES = ["audio/wav", "audio/mp3", "audio/aiff", "audio/aac", "audio/flac", "audio/ogg"]
+ALLOWED_AUDIO_TYPES = ["audio/wav", "audio/mp3", "audio/aiff", "audio/aac", "audio/flac", "audio/ogg", "audio/webm"]
 
 # Map MIME types to extensions for conversion
 MIME_TO_EXT = {
