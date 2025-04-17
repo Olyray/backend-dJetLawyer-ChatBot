@@ -98,6 +98,94 @@ def prepare_chat_history(messages: List) -> List:
     
     return chat_history
 
+async def generate_attachment_summary(llm, attachment_type, file_name, content):
+    """
+    Generate a summary for an attachment using the provided LLM.
+    
+    Args:
+        llm: The language model to use for generating summaries
+        attachment_type: Type of attachment (document, image, audio)
+        file_name: Name of the attachment file
+        content: Content of the attachment
+        
+    Returns:
+        str: Generated summary or description of the attachment
+    """
+    try:
+        if attachment_type == "document":
+            # For documents, summarize the text content
+            prompt = f"Please summarize the following document content from '{file_name}'. Focus on key information, main points, and any actionable items:\n\n{content}"
+            
+            # Use the LLM to generate a summary with the correct message format
+            try:
+                from langchain_core.messages import HumanMessage
+                
+                response = await llm.ainvoke([
+                    HumanMessage(content=prompt)
+                ])
+                
+                summary = response.content.strip()
+                return summary
+            except Exception as e:
+                print(f"Error generating document summary for {file_name}: {str(e)}")
+                return f"Document '{file_name}' (unable to generate summary)"
+            
+        elif attachment_type == "image":
+            # For images, generate a description using the multimodal capabilities
+            prompt = f"Please transcribe this image '{file_name}'"
+            
+            # Create a multimodal message for the LLM using the correct format (role/content)
+            try:
+                # Use LangChain's message format for Gemini
+                from langchain_core.messages import HumanMessage
+                
+                # Create a message with text and image
+                response = await llm.ainvoke([
+                    HumanMessage(
+                        content=[
+                            {"type": "text", "text": prompt},
+                            content  # This is the image data already formatted correctly
+                        ]
+                    )
+                ])
+                
+                description = response.content.strip()
+                return description
+            except Exception as e:
+                print(f"Error generating image description for {file_name}: {str(e)}")
+                return f"Image '{file_name}' (unable to generate description)"
+            
+        elif attachment_type == "audio":
+            # For audio, request a description
+            # Note: This assumes the LLM can process audio. If not, we'll need a specialized service
+            prompt = f"Please transcribe the content of this audio file '{file_name}'. Return just the transcription, no other text."
+            
+            # Some LLMs might not directly support audio processing
+            # This is a placeholder and may need to be adjusted based on the LLM's capabilities
+            try:
+                from langchain_core.messages import HumanMessage
+                
+                response = await llm.ainvoke([
+                    HumanMessage(
+                        content=[
+                            {"type": "text", "text": prompt},
+                            {"type": "media", "data": content["data"], "mime_type": content["mime_type"]}
+                        ]
+                    )
+                ])
+                
+                transcription = response.content.strip()
+                return transcription
+            except Exception as e:
+                # Fallback for LLMs that don't support audio
+                print(f"Audio processing error: {str(e)}")
+                return f"Audio file '{file_name}' (audio processing not available)"
+                    
+    except Exception as e:
+        # If summarization fails for any reason, add a basic description
+        print(f"Error generating summary for {file_name}: {str(e)}")
+        return f"Attachment '{file_name}' (type: {attachment_type})"
+
 async def process_attachments(db: Session, attachments: List[AttachmentData], llm=None) -> tuple:
     """
     Process attachments, generate summaries, and prepare for inclusion in the message.
@@ -204,80 +292,8 @@ async def process_attachments(db: Session, attachments: List[AttachmentData], ll
     
     if llm and attachment_content_map:
         for attachment_type, file_name, content in attachment_content_map:
-            try:
-                if attachment_type == "document":
-                    # For documents, summarize the text content
-                    prompt = f"Please summarize the following document content from '{file_name}'. Focus on key information, main points, and any actionable items:\n\n{content}"
-                    
-                    # Use the LLM to generate a summary with the correct message format
-                    try:
-                        from langchain_core.messages import HumanMessage
-                        
-                        response = await llm.ainvoke([
-                            HumanMessage(content=prompt)
-                        ])
-                        
-                        summary = response.content.strip()
-                        attachment_summaries.append(f"{summary}")
-                    except Exception as e:
-                        attachment_summaries.append(f"Document '{file_name}' (unable to generate summary)")
-                        print(f"Error generating document summary for {file_name}: {str(e)}")
-                    
-                elif attachment_type == "image":
-                    # For images, generate a description using the multimodal capabilities
-                    prompt = f"Please transcribe this image '{file_name}'"
-                    
-                    # Create a multimodal message for the LLM using the correct format (role/content)
-                    try:
-                        # Use LangChain's message format for Gemini
-                        from langchain_core.messages import HumanMessage
-                        
-                        # Create a message with text and image
-                        response = await llm.ainvoke([
-                            HumanMessage(
-                                content=[
-                                    {"type": "text", "text": prompt},
-                                    content  # This is the image data already formatted correctly
-                                ]
-                            )
-                        ])
-                        
-                        description = response.content.strip()
-                        attachment_summaries.append(f"{description}")
-                    except Exception as e:
-                        attachment_summaries.append(f"Image '{file_name}' (unable to generate description)")
-                        print(f"Error generating image description for {file_name}: {str(e)}")
-                    
-                elif attachment_type == "audio":
-                    # For audio, request a description
-                    # Note: This assumes the LLM can process audio. If not, we'll need a specialized service
-                    prompt = f"Please transcribe the content of this audio file '{file_name}'. Return just the transcription, no other text."
-                    
-                    # Some LLMs might not directly support audio processing
-                    # This is a placeholder and may need to be adjusted based on the LLM's capabilities
-                    try:
-                        from langchain_core.messages import HumanMessage
-                        
-                        response = await llm.ainvoke([
-                            HumanMessage(
-                                content=[
-                                    {"type": "text", "text": prompt},
-                                    {"type": "media", "data": content["data"], "mime_type": content["mime_type"]}
-                                ]
-                            )
-                        ])
-                        
-                        transcription = response.content.strip()
-                        attachment_summaries.append(f"{transcription}")
-                    except Exception as e:
-                        # Fallback for LLMs that don't support audio
-                        attachment_summaries.append(f"Audio file '{file_name}' (audio processing not available)")
-                        print(f"Audio processing error: {str(e)}")
-                        
-            except Exception as e:
-                # If summarization fails for any reason, add a basic description
-                attachment_summaries.append(f"Attachment '{file_name}' (type: {attachment_type})")
-                print(f"Error generating summary for {file_name}: {str(e)}")
+            summary = await generate_attachment_summary(llm, attachment_type, file_name, content)
+            attachment_summaries.append(summary)
     
     return attachment_content, attachment_summaries, attachments_for_message
 
