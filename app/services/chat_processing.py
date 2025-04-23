@@ -98,16 +98,105 @@ def prepare_chat_history(messages: List) -> List:
     
     return chat_history
 
-async def process_attachments(db: Session, attachments: List[AttachmentData]) -> tuple:
+async def generate_attachment_summary(llm, attachment_type, file_name, content):
     """
-    Process attachments and prepare them for inclusion in the LLM message.
+    Generate a summary for an attachment using the provided LLM.
+    
+    Args:
+        llm: The language model to use for generating summaries
+        attachment_type: Type of attachment (document, image, audio)
+        file_name: Name of the attachment file
+        content: Content of the attachment
+        
+    Returns:
+        str: Generated summary or description of the attachment
+    """
+    try:
+        if attachment_type == "document":
+            # For documents, summarize the text content
+            prompt = f"Please summarize the following document content from '{file_name}'. Focus on key information, main points, and any actionable items:\n\n{content}"
+            
+            # Use the LLM to generate a summary with the correct message format
+            try:
+                from langchain_core.messages import HumanMessage
+                
+                response = await llm.ainvoke([
+                    HumanMessage(content=prompt)
+                ])
+                
+                summary = response.content.strip()
+                return summary
+            except Exception as e:
+                print(f"Error generating document summary for {file_name}: {str(e)}")
+                return f"Document '{file_name}' (unable to generate summary)"
+            
+        elif attachment_type == "image":
+            # For images, generate a description using the multimodal capabilities
+            prompt = f"Please transcribe this image '{file_name}'"
+            
+            # Create a multimodal message for the LLM using the correct format (role/content)
+            try:
+                # Use LangChain's message format for Gemini
+                from langchain_core.messages import HumanMessage
+                
+                # Create a message with text and image
+                response = await llm.ainvoke([
+                    HumanMessage(
+                        content=[
+                            {"type": "text", "text": prompt},
+                            content  # This is the image data already formatted correctly
+                        ]
+                    )
+                ])
+                
+                description = response.content.strip()
+                return description
+            except Exception as e:
+                print(f"Error generating image description for {file_name}: {str(e)}")
+                return f"Image '{file_name}' (unable to generate description)"
+            
+        elif attachment_type == "audio":
+            # For audio, request a description
+            # Note: This assumes the LLM can process audio. If not, we'll need a specialized service
+            prompt = f"Please transcribe the content of this audio file '{file_name}'. Return just the transcription, no other text."
+            
+            # Some LLMs might not directly support audio processing
+            # This is a placeholder and may need to be adjusted based on the LLM's capabilities
+            try:
+                from langchain_core.messages import HumanMessage
+                
+                response = await llm.ainvoke([
+                    HumanMessage(
+                        content=[
+                            {"type": "text", "text": prompt},
+                            {"type": "media", "data": content["data"], "mime_type": content["mime_type"]}
+                        ]
+                    )
+                ])
+                
+                transcription = response.content.strip()
+                return transcription
+            except Exception as e:
+                # Fallback for LLMs that don't support audio
+                print(f"Audio processing error: {str(e)}")
+                return f"Audio file '{file_name}' (audio processing not available)"
+                    
+    except Exception as e:
+        # If summarization fails for any reason, add a basic description
+        print(f"Error generating summary for {file_name}: {str(e)}")
+        return f"Attachment '{file_name}' (type: {attachment_type})"
+
+async def process_attachments(db: Session, attachments: List[AttachmentData], llm=None) -> tuple:
+    """
+    Process attachments, generate summaries, and prepare for inclusion in the message.
     
     Args:
         db: Database session
         attachments: List of attachment data
+        llm: Language model for generating summaries (optional)
         
     Returns:
-        Tuple of (attachment_content, attachments_for_message)
+        Tuple of (attachment_content, attachment_summaries, attachments_for_message)
     """
     # For storing attachments that will be saved to the database
     attachments_for_message = []
@@ -117,6 +206,12 @@ async def process_attachments(db: Session, attachments: List[AttachmentData]) ->
     
     # For image attachments
     image_content = []
+    
+    # For audio attachments
+    audio_content = []
+    
+    # For mapping attachment to their processed content (for summary generation)
+    attachment_content_map = []
     
     for attachment_data in attachments:
         # Get attachment details from database
@@ -135,18 +230,41 @@ async def process_attachments(db: Session, attachments: List[AttachmentData]) ->
         # Process based on file type
         if attachment.file_type.startswith('image/'):
             # For images, add to image content list in the format expected by the LLM
-            image_content.append({
+            base64_image = encode_file_to_base64(file_path)
+            image_data = {
                 "type": "image_url",
                 "image_url": {
-                    "url": f"data:{attachment.file_type};base64,{encode_file_to_base64(file_path)}"
+                    "url": f"data:{attachment.file_type};base64,{base64_image}"
                 }
-            })
+            }
+            image_content.append(image_data)
+            
+            # Store for summary generation
+            attachment_content_map.append(("image", attachment.file_name, image_data))
+            
+        elif attachment.file_type.startswith('audio/'):
+            # For audio, use media type which is supported by Gemini API
+            base64_audio = encode_file_to_base64(file_path)
+            audio_data = {
+                "type": "media",
+                "mime_type": attachment.file_type,
+                "data": base64_audio
+            }
+            audio_content.append(audio_data)
+            
+            # Store for summary generation
+            attachment_content_map.append(("audio", attachment.file_name, audio_data))
+            
         else:
             # For documents, extract text content
             document_text = await extract_text_from_document(file_path)
             if document_text:
                 # Add as text content with document reference
-                text_content.append(f"\nContent from document '{attachment.file_name}':\n{document_text}")
+                formatted_text = f"\nContent from document '{attachment.file_name}':\n{document_text}"
+                text_content.append(formatted_text)
+                
+                # Store for summary generation
+                attachment_content_map.append(("document", attachment.file_name, document_text))
     
     # Format all attachments for the model
     attachment_content = []
@@ -162,8 +280,22 @@ async def process_attachments(db: Session, attachments: List[AttachmentData]) ->
         attachment_content.append(
             ("human", image_content)
         )
+        
+    # Add audio with the same pattern
+    if audio_content:
+        attachment_content.append(
+            ("human", audio_content)
+        )
     
-    return attachment_content, attachments_for_message
+    # Generate summaries for attachments if LLM is provided
+    attachment_summaries = []
+    
+    if llm and attachment_content_map:
+        for attachment_type, file_name, content in attachment_content_map:
+            summary = await generate_attachment_summary(llm, attachment_type, file_name, content)
+            attachment_summaries.append(summary)
+    
+    return attachment_content, attachment_summaries, attachments_for_message
 
 async def process_chat(
     current_user, 
@@ -198,12 +330,30 @@ async def process_chat(
 
     # Process attachments if provided
     attachment_content = []
+    attachment_summaries = []
     attachments_for_message = []
     
     if attachments:
-        attachment_content, attachments_for_message = await process_attachments(db, attachments)
+        # Get LLM for generating summaries
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        import os
+        
+        llm_for_summaries = ChatGoogleGenerativeAI(
+            google_api_key=os.getenv('GEMINI_API_KEY'),
+            model='gemini-2.0-flash',
+            temperature=0.5
+        )
+        
+        # Process attachments and generate summaries
+        attachment_content, attachment_summaries, attachments_for_message = await process_attachments(
+            db, attachments, llm_for_summaries
+        )
     
-    # Process the user's query through the retrieval chain
+    # Combine user message with attachment summaries
+    if attachment_summaries:
+        message += "\n\nAttachment summaries:\n" + "\n".join(attachment_summaries)
+    
+    # Process the combined query through the retrieval chain
     result = rag_chain.invoke({
         "input": message,
         "chat_history": chat_history,

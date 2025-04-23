@@ -12,7 +12,15 @@ import uuid
 from app.core.deps import get_db, get_current_user, get_optional_current_user
 from app.models.user import User
 from app.models.attachment import Attachment
-from app.services.file_storage import save_file, validate_file, UPLOAD_DIR
+from starlette.responses import FileResponse
+from app.services.file_storage import (
+    UPLOAD_DIR,
+    validate_file,
+    save_file
+)
+
+# Create uploads directory if it doesn't exist
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 router = APIRouter()
 
