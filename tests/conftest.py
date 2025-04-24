@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.chat import Chat, Message
 from alembic import command
 from alembic.config import Config
+from app.models.attachment import Attachment
 
 
 @pytest.fixture(scope="session")
@@ -48,6 +49,7 @@ def client(db):
 
 @pytest.fixture(autouse=True)
 def clear_db(db):
+    db.query(Attachment).delete()
     db.query(Message).delete()
     db.query(Chat).delete()
     db.query(User).delete()
