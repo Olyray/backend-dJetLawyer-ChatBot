@@ -9,7 +9,7 @@ from typing import Optional
 import os
 import uuid
 
-from app.core.deps import get_db, get_current_user, get_optional_current_user
+from app.core.deps import get_db, get_current_user, get_optional_current_user, get_premium_user
 from app.models.user import User
 from app.models.attachment import Attachment
 from starlette.responses import FileResponse
@@ -29,11 +29,14 @@ async def upload_file(
     file: UploadFile = File(...),
     file_type: str = Form(...),  # "document" or "image"
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user)
+    # Use premium user dependency to ensure only premium users can upload files
+    current_user: User = Depends(get_premium_user)
 ):
     """
     Upload a file and return attachment information.
     The attachment will be associated with a message when it's sent.
+    
+    This endpoint requires a premium subscription.
     """
     # Validate the file
     if not validate_file(file, file_type):
@@ -71,6 +74,7 @@ async def upload_file(
 async def serve_file(
     attachment_id: uuid.UUID,
     db: Session = Depends(get_db),
+    # Allow any authenticated user to view files (they might be shared with non-premium users)
     current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     """

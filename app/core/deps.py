@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.user import User
 from typing import Optional
+from app.services.subscription import is_user_premium
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
@@ -79,4 +80,24 @@ async def get_optional_current_user(
     if user is None:
         return None
     return user
+
+# Add the premium check dependency after the get_current_user dependency
+
+async def get_premium_user(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
+    """
+    Check if the current user has a premium subscription.
+    Returns the current user if they have a premium subscription, otherwise raises an HTTPException.
+    Used to protect premium-only endpoints.
+    """
+    is_premium = is_user_premium(db, current_user.id)
+    if not is_premium:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Premium subscription required for this feature",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return current_user
 
