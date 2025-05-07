@@ -6,7 +6,8 @@ from app.services.subscription import (
     is_user_premium,
     activate_premium_subscription,
     cancel_subscription,
-    update_subscription_from_payment_webhook
+    update_subscription_from_payment_webhook,
+    verify_payment
 )
 from app.models.user import User
 from app.schemas.user import SubscriptionDetails
@@ -25,6 +26,11 @@ class PaymentWebhookRequest(BaseModel):
     payment_reference: str
     status: str
     metadata: Optional[dict] = None
+
+class PaymentVerificationResponse(BaseModel):
+    verified: bool
+    message: str
+    amount: Optional[int] = None
 
 @router.get("/current", response_model=SubscriptionDetails)
 async def get_current_subscription(
@@ -118,4 +124,27 @@ async def payment_webhook(
     if not result:
         return {"status": "warning", "message": "No matching user found for payment reference"}
     
-    return {"status": "success", "message": "Subscription updated successfully"} 
+    return {"status": "success", "message": "Subscription updated successfully"}
+
+@router.get("/verify/{payment_reference}", response_model=PaymentVerificationResponse)
+async def verify_payment_status(
+    payment_reference: str,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    rate_limiter: RateLimiter = Depends(get_rate_limiter)
+):
+    """
+    Verify a payment transaction with Paystack
+    Used after payment to confirm payment was successful
+    """
+    await rate_limiter(request, response)
+    result = verify_payment(payment_reference)
+    
+    if result["verified"]:
+        # If payment is verified, we could automatically activate the subscription here
+        # Or we can leave that to a separate activate call
+        return result
+    
+    return result 

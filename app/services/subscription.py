@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException, status
 import uuid
 from typing import Optional
+import requests
+from app.core.config import settings
 
 
 def get_user_subscription(db: Session, user_id: uuid.UUID):
@@ -171,4 +173,52 @@ def update_subscription_from_payment_webhook(
         "startDate": user.subscription_start_date,
         "expiryDate": user.subscription_expiry_date,
         "autoRenew": user.subscription_auto_renew,
-    } 
+    }
+
+
+def verify_payment(
+    payment_reference: str,
+) -> dict:
+    """
+    Verify a payment with Paystack
+    
+    Args:
+        payment_reference (str): Payment reference to verify
+        
+    Returns:
+        dict: Verification result with status
+    """
+    try:
+        # Get Paystack secret key from environment variables
+        paystack_secret_key = settings.PAYSTACK_SECRET_KEY
+        
+        if not paystack_secret_key:
+            return {"verified": False, "message": "Paystack secret key not configured"}
+        
+        # Make API request to Paystack to verify the transaction
+        headers = {
+            "Authorization": f"Bearer {paystack_secret_key}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(
+            f"https://api.paystack.co/transaction/verify/{payment_reference}",
+            headers=headers
+        )
+        
+        # Parse response
+        result = response.json()
+        
+        if response.status_code == 200 and result.get("status") == "success":
+            data = result.get("data", {})
+            status = data.get("status")
+            
+            # Check if the transaction was successful
+            if status == "success":
+                return {"verified": True, "amount": data.get("amount"), "message": "Payment verified"}
+        
+        # Payment verification failed
+        return {"verified": False, "message": result.get("message", "Payment verification failed")}
+        
+    except Exception as e:
+        return {"verified": False, "message": str(e)} 
