@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Header
 from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_current_user, get_rate_limiter
 from app.services.subscription import (
@@ -6,14 +6,17 @@ from app.services.subscription import (
     is_user_premium,
     activate_premium_subscription,
     cancel_subscription,
-    update_subscription_from_payment_webhook,
-    verify_payment
+    initialize_subscription,
+    verify_payment,
+    process_subscription_event,
+    verify_webhook_signature
 )
 from app.models.user import User
 from app.schemas.user import SubscriptionDetails
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 from fastapi_limiter.depends import RateLimiter
+import json
 
 router = APIRouter()
 
@@ -22,18 +25,29 @@ class SubscriptionActivationRequest(BaseModel):
     duration_months: int = 1
     auto_renew: bool = True
 
-class PaymentWebhookRequest(BaseModel):
-    payment_reference: str
-    status: str
-    metadata: Optional[dict] = None
-
 class PaymentVerificationResponse(BaseModel):
     verified: bool
     message: str
     amount: Optional[int] = None
 
-@router.get("/current", response_model=SubscriptionDetails)
-async def get_current_subscription(
+class WebhookEventData(BaseModel):
+    """
+    Model for Paystack webhook event data
+    
+    According to Paystack docs, these events include:
+    - subscription.create: Subscription was created for the customer
+    - charge.success: Transaction was successful
+    - invoice.create: Charge attempt will be made (sent 3 days before next payment)
+    - invoice.payment_failed: Charge attempt failed
+    - invoice.update: Final status of the invoice after charge attempt
+    - subscription.not_renew: Subscription will not renew on next payment date
+    - subscription.disable: Subscription has been cancelled or completed
+    """
+    event: str
+    data: Dict[str, Any]
+
+@router.get("/status", response_model=SubscriptionDetails)
+async def get_subscription_status(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
@@ -41,13 +55,13 @@ async def get_current_subscription(
     rate_limiter: RateLimiter = Depends(get_rate_limiter)
 ):
     """
-    Get current user's subscription details
+    Get the current user's subscription status
     """
     await rate_limiter(request, response)
     return get_user_subscription(db, current_user.id)
 
-@router.get("/verify-premium")
-async def verify_premium_status(
+@router.get("/is-premium", response_model=bool)
+async def check_premium_status(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
@@ -55,15 +69,26 @@ async def verify_premium_status(
     rate_limiter: RateLimiter = Depends(get_rate_limiter)
 ):
     """
-    Verify if the current user has premium status
-    Used by frontend to verify premium features access
+    Check if the current user has an active premium subscription
+    Used for quick checks in frontend
     """
     await rate_limiter(request, response)
-    is_premium = is_user_premium(db, current_user.id)
-    return {
-        "isPremium": is_premium,
-        "planType": current_user.subscription_plan.value if current_user.subscription_plan else "free"
-    }
+    return is_user_premium(db, current_user.id)
+
+@router.post("/initialize", response_model=Dict[str, Any])
+async def initialize_new_subscription(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    rate_limiter: RateLimiter = Depends(get_rate_limiter)
+):
+    """
+    Initialize a new subscription for the current user
+    Returns payment authorization URL
+    """
+    await rate_limiter(request, response)
+    return initialize_subscription(db, current_user.id)
 
 @router.post("/activate", response_model=SubscriptionDetails)
 async def activate_subscription(
@@ -79,6 +104,7 @@ async def activate_subscription(
     Called after successful payment
     """
     await rate_limiter(request, response)
+    print(f"Activating subscription for user {current_user.id} with reference: {subscription_data.payment_reference}")
     return activate_premium_subscription(
         db,
         current_user.id,
@@ -88,7 +114,7 @@ async def activate_subscription(
     )
 
 @router.post("/cancel", response_model=SubscriptionDetails)
-async def cancel_current_subscription(
+async def cancel_user_subscription(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
@@ -97,34 +123,74 @@ async def cancel_current_subscription(
 ):
     """
     Cancel the current user's subscription
-    Subscription will remain active until expiry date
+    Will keep active until expiry date but disable auto-renewal
     """
     await rate_limiter(request, response)
     return cancel_subscription(db, current_user.id)
 
 @router.post("/webhook", status_code=status.HTTP_200_OK)
-async def payment_webhook(
-    webhook_data: PaymentWebhookRequest,
+async def subscription_webhook(
     request: Request,
-    response: Response,
     db: Session = Depends(get_db),
-    rate_limiter: RateLimiter = Depends(get_rate_limiter)
+    x_paystack_signature: str = Header(None)
 ):
     """
-    Webhook endpoint for payment provider
-    Updates subscription status based on payment status
+    Webhook endpoint for Paystack events system
+    
+    This endpoint handles various events from Paystack including:
+    - subscription.create: When a subscription is created
+    - charge.success: When a payment is successful
+    - invoice.create: 3 days before next payment
+    - invoice.payment_failed: When payment fails
+    - invoice.update: Final status after charge attempt
+    - subscription.not_renew: When subscription won't renew
+    - subscription.disable: When subscription is disabled/completed
     """
-    await rate_limiter(request, response)
-    result = update_subscription_from_payment_webhook(
-        db,
-        webhook_data.payment_reference,
-        webhook_data.status
-    )
+    # Get the raw request body
+    payload = await request.body()
+    
+    # Verify that the request is coming from Paystack
+    if not x_paystack_signature or not verify_webhook_signature(payload, x_paystack_signature):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid signature"
+        )
+    print('Webhook received')
+    # Paystack sends the event as JSON
+    try:
+        event_data = json.loads(payload)
+    except json.JSONDecodeError:
+        return {"status": "error", "message": "Invalid JSON payload"}
+    
+    # Basic validation of the event data
+    if not isinstance(event_data, dict):
+        return {"status": "error", "message": "Invalid event data format"}
+    
+    event_type = event_data.get("event")
+    if not event_type:
+        return {"status": "error", "message": "Missing event type"}
+    
+    data = event_data.get("data")
+    if not data:
+        return {"status": "error", "message": "Missing event data"}
+    
+    # Process the event
+    result = process_subscription_event(db, event_data)
     
     if not result:
-        return {"status": "warning", "message": "No matching user found for payment reference"}
+        return {"status": "warning", "message": "No action taken for this event"}
     
-    return {"status": "success", "message": "Subscription updated successfully"}
+    response_message = f"Processed {event_type} event successfully"
+    if result.get("status") == "notification_scheduled":
+        response_message = "Payment reminder notification scheduled"
+    elif result.get("status") == "payment_failed":
+        response_message = "Payment failure recorded"
+    
+    return {
+        "status": "success",
+        "message": response_message,
+        "event_type": event_type
+    }
 
 @router.get("/verify/{payment_reference}", response_model=PaymentVerificationResponse)
 async def verify_payment_status(

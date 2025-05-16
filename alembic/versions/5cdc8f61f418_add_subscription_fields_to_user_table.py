@@ -29,27 +29,27 @@ def upgrade() -> None:
     # Add columns if they don't exist
     # Use try/except to handle cases where columns might already exist
     try:
-        op.add_column('users', sa.Column('subscription_plan', sa.Enum('FREE', 'PREMIUM', name='subscriptionplantype'), nullable=True))
+    op.add_column('users', sa.Column('subscription_plan', sa.Enum('FREE', 'PREMIUM', name='subscriptionplantype'), nullable=True))
     except Exception:
         pass
         
     try:
-        op.add_column('users', sa.Column('subscription_start_date', sa.DateTime(), nullable=True))
+    op.add_column('users', sa.Column('subscription_start_date', sa.DateTime(), nullable=True))
     except Exception:
         pass
         
     try:
-        op.add_column('users', sa.Column('subscription_expiry_date', sa.DateTime(), nullable=True))
+    op.add_column('users', sa.Column('subscription_expiry_date', sa.DateTime(), nullable=True))
     except Exception:
         pass
         
     try:
-        op.add_column('users', sa.Column('subscription_auto_renew', sa.Boolean(), nullable=True))
+    op.add_column('users', sa.Column('subscription_auto_renew', sa.Boolean(), nullable=True))
     except Exception:
         pass
         
     try:
-        op.add_column('users', sa.Column('payment_reference', sa.String(), nullable=True))
+    op.add_column('users', sa.Column('payment_reference', sa.String(), nullable=True))
     except Exception:
         pass
     
