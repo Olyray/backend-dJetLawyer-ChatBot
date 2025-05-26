@@ -1,9 +1,10 @@
 from sqlalchemy.orm import Session
 from app.models.user import User, SubscriptionPlanType
+from app.models.subscription_history import SubscriptionHistory, PaymentStatus, SubscriptionEvent
 from datetime import datetime, timedelta
 from fastapi import HTTPException, status
 import uuid
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import requests
 from app.core.config import settings
 
@@ -28,7 +29,31 @@ def get_user_subscription(db: Session, user_id: uuid.UUID):
         "startDate": user.subscription_start_date,
         "expiryDate": user.subscription_expiry_date,
         "autoRenew": user.subscription_auto_renew,
+        "cancellationDate": user.cancellation_date,
+        "cancellationReason": user.cancellation_reason,
+        "remainingDays": calculate_remaining_days(user.subscription_expiry_date)
     }
+
+
+def calculate_remaining_days(expiry_date: Optional[datetime]) -> int:
+    """
+    Calculate remaining days in subscription
+    
+    Args:
+        expiry_date (datetime): Subscription expiry date
+        
+    Returns:
+        int: Number of days remaining
+    """
+    if not expiry_date:
+        return 0
+    
+    now = datetime.utcnow()
+    if expiry_date < now:
+        return 0
+    
+    remaining = (expiry_date - now).days
+    return remaining if remaining > 0 else 0
 
 
 def is_user_premium(db: Session, user_id: uuid.UUID) -> bool:
@@ -306,13 +331,14 @@ def activate_premium_subscription(
     }
 
 
-def cancel_subscription(db: Session, user_id: uuid.UUID) -> dict:
+def cancel_subscription(db: Session, user_id: uuid.UUID, reason: Optional[str] = None) -> dict:
     """
     Cancel a user's subscription
     
     Args:
         db (Session): Database session
         user_id (uuid.UUID): ID of the user
+        reason (str, optional): Reason for cancellation
         
     Returns:
         dict: Updated subscription details
@@ -358,8 +384,36 @@ def cancel_subscription(db: Session, user_id: uuid.UUID) -> dict:
                     # Log error but continue
                     print(f"Failed to disable Paystack subscription: {disable_response.text}")
     
+    # Set cancellation date and reason
+    user.cancellation_date = datetime.utcnow()
+    user.cancellation_reason = reason
+    
     # Allow subscription to continue until expiry date, but disable auto-renew
     user.subscription_auto_renew = False
+    
+    # Record cancellation in subscription history
+    if user.payment_reference:
+        # Check if we already have a record for this payment reference
+        existing_record = db.query(SubscriptionHistory).filter(
+            SubscriptionHistory.payment_reference == user.payment_reference
+        ).first()
+        
+        if not existing_record:
+            # Create a new history record
+            history_record = SubscriptionHistory(
+                user_id=user.id,
+                payment_reference=user.payment_reference,
+                amount=settings.SUBSCRIPTION_PRICE_NAIRA * 100,  # Convert to kobo
+                payment_status=PaymentStatus.SUCCESSFUL,
+                payment_date=user.subscription_start_date or datetime.utcnow(),
+                event_type=SubscriptionEvent.SUBSCRIPTION_DISABLE,
+                plan_type=user.subscription_plan.value,
+                duration_months=1,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
+                cancellation_reason=reason
+            )
+            db.add(history_record)
     
     db.commit()
     db.refresh(user)
@@ -369,6 +423,9 @@ def cancel_subscription(db: Session, user_id: uuid.UUID) -> dict:
         "startDate": user.subscription_start_date,
         "expiryDate": user.subscription_expiry_date,
         "autoRenew": user.subscription_auto_renew,
+        "cancellationDate": user.cancellation_date,
+        "cancellationReason": user.cancellation_reason,
+        "remainingDays": calculate_remaining_days(user.subscription_expiry_date)
     }
 
 
@@ -678,4 +735,105 @@ def verify_webhook_signature(request_body: bytes, signature_header: str) -> bool
     ).hexdigest()
     
     # Compare with the signature from Paystack
-    return hmac.compare_digest(computed_hash, signature_header) 
+    return hmac.compare_digest(computed_hash, signature_header)
+
+
+def get_subscription_history(db: Session, user_id: uuid.UUID, skip: int = 0, limit: int = 10) -> Dict[str, Any]:
+    """
+    Get subscription history for a user
+    
+    Args:
+        db (Session): Database session
+        user_id (uuid.UUID): ID of the user
+        skip (int): Number of records to skip
+        limit (int): Maximum number of records to return
+        
+    Returns:
+        dict: Paginated subscription history
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get total count
+    total = db.query(SubscriptionHistory).filter(
+        SubscriptionHistory.user_id == user_id
+    ).count()
+    
+    # Get paginated records
+    history = db.query(SubscriptionHistory).filter(
+        SubscriptionHistory.user_id == user_id
+    ).order_by(SubscriptionHistory.created_at.desc())\
+    .offset(skip).limit(limit).all()
+    
+    return {
+        "total": total,
+        "items": history
+    }
+
+
+def record_subscription_payment(
+    db: Session, 
+    user_id: uuid.UUID, 
+    payment_reference: str,
+    amount: int,
+    payment_status: PaymentStatus,
+    transaction_id: Optional[str] = None,
+    payment_method: Optional[str] = None
+) -> SubscriptionHistory:
+    """
+    Record a subscription payment in history
+    
+    Args:
+        db (Session): Database session
+        user_id (uuid.UUID): ID of the user
+        payment_reference (str): Payment reference
+        amount (int): Payment amount in kobo
+        payment_status (PaymentStatus): Status of payment
+        transaction_id (str, optional): Transaction ID from payment provider
+        payment_method (str, optional): Payment method used
+        
+    Returns:
+        SubscriptionHistory: Created history record
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if record already exists
+    existing = db.query(SubscriptionHistory).filter(
+        SubscriptionHistory.payment_reference == payment_reference
+    ).first()
+    
+    if existing:
+        # Update existing record
+        existing.payment_status = payment_status
+        existing.transaction_id = transaction_id or existing.transaction_id
+        existing.payment_method = payment_method or existing.payment_method
+        existing.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing)
+        return existing
+    
+    # Create new record
+    history = SubscriptionHistory(
+        user_id=user_id,
+        payment_reference=payment_reference,
+        amount=amount,
+        payment_status=payment_status,
+        payment_date=datetime.utcnow(),
+        event_type=SubscriptionEvent.CHARGE_SUCCESS if payment_status == PaymentStatus.SUCCESSFUL else None,
+        plan_type=user.subscription_plan.value,
+        duration_months=1,
+        transaction_id=transaction_id,
+        payment_method=payment_method,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+    
+    db.add(history)
+    db.commit()
+    db.refresh(history)
+    
+    return history 

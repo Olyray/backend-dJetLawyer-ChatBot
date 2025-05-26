@@ -31,3 +31,8 @@ class User(Base):
     subscription_expiry_date = Column(DateTime, nullable=True)
     subscription_auto_renew = Column(Boolean, default=True)
     payment_reference = Column(String, nullable=True)
+    cancellation_date = Column(DateTime, nullable=True)
+    cancellation_reason = Column(String, nullable=True)
+    
+    # Relationships
+    subscription_history = relationship("SubscriptionHistory", back_populates="user", cascade="all, delete-orphan")

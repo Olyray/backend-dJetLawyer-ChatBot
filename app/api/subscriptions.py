@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Header, Query
 from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_current_user, get_rate_limiter
 from app.services.subscription import (
@@ -9,10 +9,16 @@ from app.services.subscription import (
     initialize_subscription,
     verify_payment,
     process_subscription_event,
-    verify_webhook_signature
+    verify_webhook_signature,
+    get_subscription_history
 )
 from app.models.user import User
 from app.schemas.user import SubscriptionDetails
+from app.schemas.subscription import (
+    SubscriptionDetailsExtended, 
+    CancellationRequest, 
+    SubscriptionHistoryPaginated
+)
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from fastapi_limiter.depends import RateLimiter
@@ -46,7 +52,7 @@ class WebhookEventData(BaseModel):
     event: str
     data: Dict[str, Any]
 
-@router.get("/status", response_model=SubscriptionDetails)
+@router.get("/status", response_model=SubscriptionDetailsExtended)
 async def get_subscription_status(
     request: Request,
     response: Response,
@@ -90,7 +96,7 @@ async def initialize_new_subscription(
     await rate_limiter(request, response)
     return initialize_subscription(db, current_user.id)
 
-@router.post("/activate", response_model=SubscriptionDetails)
+@router.post("/activate", response_model=SubscriptionDetailsExtended)
 async def activate_subscription(
     subscription_data: SubscriptionActivationRequest,
     request: Request,
@@ -113,10 +119,11 @@ async def activate_subscription(
         subscription_data.auto_renew
     )
 
-@router.post("/cancel", response_model=SubscriptionDetails)
+@router.post("/cancel", response_model=SubscriptionDetailsExtended)
 async def cancel_user_subscription(
-    request: Request,
-    response: Response,
+    cancellation_data: CancellationRequest = None,
+    request: Request = None,
+    response: Response = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     rate_limiter: RateLimiter = Depends(get_rate_limiter)
@@ -124,9 +131,28 @@ async def cancel_user_subscription(
     """
     Cancel the current user's subscription
     Will keep active until expiry date but disable auto-renewal
+    Optionally provide cancellation reason
     """
     await rate_limiter(request, response)
-    return cancel_subscription(db, current_user.id)
+    reason = cancellation_data.reason if cancellation_data else None
+    return cancel_subscription(db, current_user.id, reason)
+
+@router.get("/history", response_model=SubscriptionHistoryPaginated)
+async def get_user_subscription_history(
+    request: Request,
+    response: Response,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    rate_limiter: RateLimiter = Depends(get_rate_limiter)
+):
+    """
+    Get subscription payment history for the current user
+    Returns paginated list of subscription transactions
+    """
+    await rate_limiter(request, response)
+    return get_subscription_history(db, current_user.id, skip, limit)
 
 @router.post("/webhook", status_code=status.HTTP_200_OK)
 async def subscription_webhook(
