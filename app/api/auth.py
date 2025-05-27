@@ -10,6 +10,7 @@ from app.core.security import create_access_token, create_refresh_token, decode_
 from app.services.email_service import send_verification_email
 from app.core.config import settings
 from app.models.user import User
+from app.services.subscription import get_user_subscription
 from fastapi_limiter.depends import RateLimiter
 from jose import JWTError
 
@@ -30,7 +31,16 @@ async def register(
     refresh_token = create_refresh_token(data={"sub": db_user.email})
     verification_token = create_verification_token(db, db_user)
     background_tasks.add_task(send_verification_email, db_user.email, verification_token)
-    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+    
+    # Include subscription information in response
+    subscription = get_user_subscription(db, db_user.id)
+    
+    return {
+        "access_token": access_token, 
+        "refresh_token": refresh_token, 
+        "token_type": "bearer",
+        "subscription": subscription
+    }
 
 @router.get("/verify-email")
 async def verify_email(
@@ -71,7 +81,16 @@ async def login(
         )
     access_token = create_access_token(data={"sub": user.email})
     refresh_token = create_refresh_token(data={"sub": user.email})
-    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+    
+    # Include subscription information in response
+    subscription = get_user_subscription(db, user.id)
+    
+    return {
+        "access_token": access_token, 
+        "refresh_token": refresh_token, 
+        "token_type": "bearer",
+        "subscription": subscription
+    }
 
 
 @router.post("/refresh", response_model=Token)
@@ -92,7 +111,16 @@ async def refresh_token(
         if user is None:
             raise HTTPException(status_code=404, detail="User not found")
         access_token = create_access_token(data={"sub": email})
-        return {"access_token": access_token, "refresh_token": refresh_token.refresh_token, "token_type": "bearer"}
+        
+        # Include subscription information in response
+        subscription = get_user_subscription(db, user.id)
+        
+        return {
+            "access_token": access_token, 
+            "refresh_token": refresh_token.refresh_token, 
+            "token_type": "bearer",
+            "subscription": subscription
+        }
     except JWTError:
         raise HTTPException(status_code=400, detail="Invalid refresh token")
 
@@ -105,6 +133,9 @@ async def google_login(token: GoogleLoginRequest, db: Session = Depends(get_db))
     
     access_token = create_access_token(data={"sub": user.email})
     refresh_token = create_refresh_token(data={"sub": user.email})
+    
+    # Include subscription information in response
+    subscription = get_user_subscription(db, user.id)
 
     return {
         "access_token": access_token,
@@ -113,7 +144,8 @@ async def google_login(token: GoogleLoginRequest, db: Session = Depends(get_db))
             "email": user.email,
             "password": ""
         },
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "subscription": subscription
     }
 
 

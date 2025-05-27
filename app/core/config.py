@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     TESTING: bool
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     
+    # Paystack configuration
+    PAYSTACK_SECRET_KEY: str
+    PAYSTACK_PUBLIC_KEY: str
+    SUBSCRIPTION_PRICE_NAIRA: int = 1000  # Default price: ₦1,000
 
     class Config:
         env_file = ".env"

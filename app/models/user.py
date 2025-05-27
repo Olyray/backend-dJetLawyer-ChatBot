@@ -1,8 +1,14 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum
 from app.db.base import Base
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
+import enum
+
+
+class SubscriptionPlanType(str, enum.Enum):
+    FREE = "free"
+    PREMIUM = "premium"
 
 
 class User(Base):
@@ -18,3 +24,15 @@ class User(Base):
     verification_token = Column(String, nullable=True)
     verification_token_expiry = Column(DateTime, nullable=True)
     admin_user = Column(Boolean, default=False)
+    
+    # Subscription fields
+    subscription_plan = Column(Enum(SubscriptionPlanType), default=SubscriptionPlanType.FREE)
+    subscription_start_date = Column(DateTime, nullable=True)
+    subscription_expiry_date = Column(DateTime, nullable=True)
+    subscription_auto_renew = Column(Boolean, default=True)
+    payment_reference = Column(String, nullable=True)
+    cancellation_date = Column(DateTime, nullable=True)
+    cancellation_reason = Column(String, nullable=True)
+    
+    # Relationships
+    subscription_history = relationship("SubscriptionHistory", back_populates="user", cascade="all, delete-orphan")
