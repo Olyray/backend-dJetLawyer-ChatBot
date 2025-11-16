@@ -123,8 +123,6 @@ passlib
 pdfkit
 pillow
 pinecone
-pinecone-plugin-inference
-pinecone-plugin-interface
 pluggy
 posthog
 proto-plus
