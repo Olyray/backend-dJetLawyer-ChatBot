@@ -10,7 +10,7 @@ asgiref
 async-timeout
 attrs
 backoff
-bcrypt
+bcrypt==4.2.0
 beautifulsoup4
 bs4
 build
