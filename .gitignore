@@ -166,3 +166,4 @@ uploads/
 latest.dump
 populate.sql
 ChatBotBackend/
+.vscode/
