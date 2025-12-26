@@ -167,3 +167,8 @@ latest.dump
 populate.sql
 ChatBotBackend/
 .vscode/
+.continue/
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml

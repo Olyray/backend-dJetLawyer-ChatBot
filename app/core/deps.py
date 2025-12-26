@@ -39,7 +39,7 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
 
 async def setup_rate_limiter():
     import redis.asyncio as redis
-    redis_instance = redis.from_url(f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}", encoding="utf-8", decode_responses=True)
+    redis_instance = redis.from_url(settings.REDISCLOUD_URL, encoding="utf-8", decode_responses=True, ssl_cert_reqs=None)
     await FastAPILimiter.init(redis_instance)
 
 # New Addition: Rate limiter dependency
