@@ -166,6 +166,7 @@ uploads/
 latest.dump
 populate.sql
 ChatBotBackend/
+ChatbotBackend/
 .vscode/
 .continue/
 # Elastic Beanstalk Files
