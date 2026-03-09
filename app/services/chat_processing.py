@@ -79,7 +79,7 @@ def prepare_chat_history(messages: List) -> List:
         # Initialize LLM for summarization if needed
         llm = ChatGoogleGenerativeAI(
             google_api_key=os.getenv('GEMINI_API_KEY'),
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             temperature=0.5
         )
         
@@ -340,7 +340,7 @@ async def process_chat(
         
         llm_for_summaries = ChatGoogleGenerativeAI(
             google_api_key=os.getenv('GEMINI_API_KEY'),
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             temperature=0.5
         )
         
