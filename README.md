@@ -37,13 +37,16 @@ The system supports sharing chat conversations publicly:
 - API supports passing previous messages as context when creating a new chat
 
 To share a chat:
+
 - API endpoint: `POST /api/v1/chat/chats/{chat_id}/share` (for authenticated users)
 - API endpoint: `POST /api/v1/chatbot/share-anonymous-chat` (for anonymous users)
 
 To view a shared chat:
+
 - API endpoint: `GET /api/v1/chat/shared/{chat_id}`
 
 To continue a shared chat:
+
 - API endpoint: `POST /api/v1/chatbot/chat` with the `previous_messages` parameter
 
 ## API Documentation
