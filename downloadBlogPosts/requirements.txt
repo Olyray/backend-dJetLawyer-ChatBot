@@ -23,7 +23,7 @@ chroma-hnswlib==0.7.3
 chromadb==0.5.3
 click==8.1.7
 coloredlogs==15.0.1
-cryptography==43.0.0
+cryptography==46.0.5
 dataclasses-json==0.6.7
 defusedxml==0.7.1
 Deprecated==1.2.14
