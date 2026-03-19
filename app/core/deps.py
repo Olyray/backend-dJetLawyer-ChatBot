@@ -44,8 +44,24 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
 
 async def setup_rate_limiter():
     import redis.asyncio as redis
-    redis_instance = redis.from_url(settings.REDISCLOUD_URL, encoding="utf-8", decode_responses=True, ssl_cert_reqs=None)
+    from redis.asyncio.connection import ConnectionPool
+    
+    # Create connection pool with keepalive and health checks
+    pool = ConnectionPool.from_url(
+        settings.REDISCLOUD_URL,
+        encoding="utf-8",
+        decode_responses=True,
+        ssl_cert_reqs=None,
+        max_connections=20,
+        socket_keepalive=True,
+        health_check_interval=30,
+        retry_on_timeout=True,
+        socket_connect_timeout=5,
+    )
+    
+    redis_instance = redis.Redis(connection_pool=pool)
     await FastAPILimiter.init(redis_instance)
+    logger.info("Rate limiter initialized with connection pooling")
 
 # New Addition: Rate limiter dependency
 def get_rate_limiter():

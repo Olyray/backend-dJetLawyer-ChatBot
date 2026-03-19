@@ -112,7 +112,6 @@ async def activate_subscription(
     Called after successful payment
     """
     await rate_limiter(request, response)
-    print(f"Activating subscription for user {current_user.id} with reference: {subscription_data.payment_reference}")
     return activate_premium_subscription(
         db,
         current_user.id,
@@ -204,8 +203,13 @@ async def subscription_webhook(
         customer_email=customer_email,
         payment_reference=payment_reference,
     )
-    db.add(webhook_log)
-    db.commit()
+    try:
+        db.add(webhook_log)
+        db.commit()
+    except Exception as db_err:
+        db.rollback()
+        # Continue even if logging fails - we still need to validate and respond
+        pass
 
     if not signature_valid:
         raise HTTPException(
@@ -229,14 +233,30 @@ async def subscription_webhook(
     try:
         result = process_subscription_event(db, event_data)
         processed_successfully = result is not None
-        webhook_log.processed_successfully = processed_successfully
-        webhook_log.processing_result = result
-        db.commit()
+        try:
+            webhook_log.processed_successfully = processed_successfully
+            webhook_log.processing_result = result
+            db.commit()
+        except Exception:
+            db.rollback()
+            # Log update failed but processing succeeded - continue
+            pass
     except Exception as e:
-        webhook_log.processed_successfully = False
-        webhook_log.error_message = str(e)
-        db.commit()
-        raise
+        # Processing failed - log it and return error response
+        try:
+            webhook_log.processed_successfully = False
+            webhook_log.error_message = str(e)
+            db.commit()
+        except Exception:
+            db.rollback()
+            pass
+        
+        # Return error response instead of raising (don't crash)
+        return {
+            "status": "error",
+            "message": f"Processing failed: {str(e)}",
+            "event_type": event_type
+        }
 
     if not result:
         return {"status": "warning", "message": "No action taken for this event"}

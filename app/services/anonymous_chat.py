@@ -1,12 +1,24 @@
 import redis.asyncio as redis
+from redis.asyncio.connection import ConnectionPool
 from app.core.config import settings
 import json
 from typing import List, Optional
 from app.schemas.chat import Message
 import uuid
 
-# Initialize Redis client
-redis_client = redis.from_url(f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}", encoding="utf-8", decode_responses=True)
+# Use the external Redis URL (same as rate limiter) since backend runs on EC2, not Render
+redis_pool = ConnectionPool.from_url(
+    settings.REDISCLOUD_URL,
+    encoding="utf-8",
+    decode_responses=True,
+    max_connections=10,
+    socket_keepalive=True,
+    health_check_interval=30,
+    retry_on_timeout=True,
+    socket_connect_timeout=5,
+)
+
+redis_client = redis.Redis(connection_pool=redis_pool)
 
 async def get_anonymous_message_count(session_id: str) -> int:
     """Get the number of messages sent by an anonymous user."""

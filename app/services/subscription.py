@@ -258,10 +258,9 @@ def initialize_subscription(db: Session, user_id: uuid.UUID) -> Dict[str, Any]:
     )
     
     if response.status_code != 200:
-        print('The second 500 error')
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to initialize payment: {response.json().get('message')}"
+            detail=f"Failed to initialize payment: {error_msg}"
         )
     
     data = response.json().get("data", {})
@@ -304,9 +303,11 @@ def activate_premium_subscription(
     # Verify payment
     payment_verified = verify_payment(payment_reference)
     if not payment_verified.get("verified"):
+        error_message = payment_verified.get("message", "Payment verification failed")
+        print(f"Payment verification failed for reference {payment_reference}: {error_message}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Payment verification failed"
+            detail=f"Payment verification failed: {error_message}"
         )
     
     # Set subscription details
@@ -442,8 +443,6 @@ def verify_payment(
         dict: Verification result with status
     """
     try:
-        # Log the reference being verified
-        print(f"Attempting to verify payment reference: {payment_reference}")
         
         # Get Paystack secret key from environment variables
         paystack_secret_key = settings.PAYSTACK_SECRET_KEY
@@ -472,9 +471,13 @@ def verify_payment(
             # Check if the transaction was successful
             if status == "success":
                 return {"verified": True, "amount": data.get("amount"), "message": "Payment verified"}
+            else:
+                return {"verified": False, "message": f"Transaction status: {status}"}
         
         # Payment verification failed
-        return {"verified": False, "message": result.get("message", "Payment verification failed")}
+        error_msg = result.get("message", "Payment verification failed")
+        print(f"Verification failed: {error_msg}")
+        return {"verified": False, "message": error_msg}
         
     except Exception as e:
         print(f"Error verifying payment: {str(e)}")

@@ -143,7 +143,6 @@ async def transfer_anonymous_chat(
     if not chat or chat.user_id != current_user.id:
         # Check for anonymous chat with the same ID
         anon_messages = await get_anonymous_chat_messages(anonymous_session_id, str(chat_request.chat_id))
-        print(f"Found {len(anon_messages)} anonymous messages to transfer")
         
         if anon_messages:
             # Create a new chat for the user with the original title
@@ -168,7 +167,6 @@ async def transfer_anonymous_chat(
             # No anonymous chat to transfer, create a new chat
             chat_title = title_chain.invoke({"message": chat_request.message})
             chat = create_chat(db, current_user.id, ChatCreate(title=chat_title))
-            print(f"No anonymous chat found, created new chat with ID: {chat.id}")
             return chat, [], False
     else:
         # User's own chat exists
