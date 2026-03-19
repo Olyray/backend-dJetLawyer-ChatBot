@@ -9,7 +9,7 @@ class Attachment(Base):
     __tablename__ = "attachments"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id"))
+    message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id"), index=True)
     message = relationship("Message", back_populates="attachments")
     
     file_name = Column(String, nullable=False)

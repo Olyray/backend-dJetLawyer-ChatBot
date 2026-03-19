@@ -85,11 +85,16 @@ async def login(
     # Include subscription information in response
     subscription = get_user_subscription(db, user.id)
     
+    # Return user information including admin status
+    from app.schemas.user import UserInDB
+    user_data = UserInDB.model_validate(user)
+    
     return {
         "access_token": access_token, 
         "refresh_token": refresh_token, 
         "token_type": "bearer",
-        "subscription": subscription
+        "subscription": subscription,
+        "user": user_data
     }
 
 
