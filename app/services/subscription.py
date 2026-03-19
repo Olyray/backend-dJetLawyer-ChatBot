@@ -588,19 +588,24 @@ def process_subscription_event(db: Session, event_data: Dict[str, Any]) -> Optio
         }
     
     elif event_type == "invoice.payment_failed":
-        # Payment attempt failed
+        # Payment attempt failed — downgrade subscription immediately
         customer_email = data.get("customer", {}).get("email")
-        
+
         if not customer_email:
             return None
-        
+
         user = db.query(User).filter(User.email == customer_email).first()
         if not user:
             return None
-        
-        # Mark that there was a payment failure but don't change status yet
-        # Could implement notification logic here
-        
+
+        user.subscription_plan = SubscriptionPlanType.FREE
+        user.subscription_auto_renew = False
+        user.cancellation_date = datetime.utcnow()
+        user.cancellation_reason = "Payment failed"
+
+        db.commit()
+        db.refresh(user)
+
         return {
             "status": "payment_failed",
             "planType": user.subscription_plan.value,

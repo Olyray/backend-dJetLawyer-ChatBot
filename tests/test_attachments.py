@@ -19,12 +19,13 @@ def setup_upload_dir():
     yield
     # Note: We don't clean up after tests to avoid interfering with other tests
 
-def test_document_upload(client, db, setup_upload_dir):
+def test_document_upload(client, db, setup_upload_dir, make_premium_user):
     # Create a test user
     hashed_password = get_password_hash("testpassword")
     user = User(email="attachtest@example.com", hashed_password=hashed_password)
     db.add(user)
     db.commit()
+    make_premium_user(user)
 
     # Generate access token
     access_token = create_access_token(data={"sub": user.email})
@@ -52,12 +53,13 @@ def test_document_upload(client, db, setup_upload_dir):
     assert attachment.file_name == test_filename
     assert attachment.file_path.startswith("documents/")
 
-def test_image_upload(client, db, setup_upload_dir):
+def test_image_upload(client, db, setup_upload_dir, make_premium_user):
     # Create a test user
     hashed_password = get_password_hash("testpassword")
     user = User(email="imagetest@example.com", hashed_password=hashed_password)
     db.add(user)
     db.commit()
+    make_premium_user(user)
 
     # Generate access token
     access_token = create_access_token(data={"sub": user.email})
@@ -85,12 +87,13 @@ def test_image_upload(client, db, setup_upload_dir):
     assert attachment.file_name == test_filename
     assert attachment.file_path.startswith("images/")
 
-def test_audio_upload(client, db, setup_upload_dir):
+def test_audio_upload(client, db, setup_upload_dir, make_premium_user):
     # Create a test user
     hashed_password = get_password_hash("testpassword")
     user = User(email="audiotest@example.com", hashed_password=hashed_password)
     db.add(user)
     db.commit()
+    make_premium_user(user)
 
     # Generate access token
     access_token = create_access_token(data={"sub": user.email})
@@ -118,12 +121,13 @@ def test_audio_upload(client, db, setup_upload_dir):
     assert attachment.file_name == test_filename
     assert attachment.file_path.startswith("audio/")
 
-def test_file_validation(client, db, setup_upload_dir):
+def test_file_validation(client, db, setup_upload_dir, make_premium_user):
     # Create a test user
     hashed_password = get_password_hash("testpassword")
     user = User(email="validatetest@example.com", hashed_password=hashed_password)
     db.add(user)
     db.commit()
+    make_premium_user(user)
 
     # Generate access token
     access_token = create_access_token(data={"sub": user.email})

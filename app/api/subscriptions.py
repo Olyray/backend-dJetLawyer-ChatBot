@@ -19,9 +19,11 @@ from app.schemas.subscription import (
     CancellationRequest, 
     SubscriptionHistoryPaginated
 )
+from app.models.webhook_log import WebhookLog
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from fastapi_limiter.depends import RateLimiter
+from datetime import datetime
 import json
 
 router = APIRouter()
@@ -174,44 +176,77 @@ async def subscription_webhook(
     """
     # Get the raw request body
     payload = await request.body()
-    
-    # Verify that the request is coming from Paystack
-    if not x_paystack_signature or not verify_webhook_signature(payload, x_paystack_signature):
+
+    # Verify signature before doing anything else
+    signature_valid = bool(x_paystack_signature and verify_webhook_signature(payload, x_paystack_signature))
+
+    # Parse payload for logging regardless of signature validity
+    try:
+        event_data = json.loads(payload)
+    except json.JSONDecodeError:
+        event_data = None
+
+    event_type = event_data.get("event") if isinstance(event_data, dict) else None
+    data = event_data.get("data") if isinstance(event_data, dict) else None
+    customer_email = None
+    payment_reference = None
+    if isinstance(data, dict):
+        customer_email = data.get("customer", {}).get("email") if isinstance(data.get("customer"), dict) else None
+        payment_reference = data.get("reference")
+
+    # Always log the incoming webhook attempt
+    webhook_log = WebhookLog(
+        received_at=datetime.utcnow(),
+        event_type=event_type,
+        paystack_signature=x_paystack_signature,
+        signature_valid=signature_valid,
+        raw_payload=event_data,
+        customer_email=customer_email,
+        payment_reference=payment_reference,
+    )
+    db.add(webhook_log)
+    db.commit()
+
+    if not signature_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid signature"
         )
-    print('Webhook received')
-    # Paystack sends the event as JSON
-    try:
-        event_data = json.loads(payload)
-    except json.JSONDecodeError:
+
+    if event_data is None:
         return {"status": "error", "message": "Invalid JSON payload"}
-    
-    # Basic validation of the event data
+
     if not isinstance(event_data, dict):
         return {"status": "error", "message": "Invalid event data format"}
-    
-    event_type = event_data.get("event")
+
     if not event_type:
         return {"status": "error", "message": "Missing event type"}
-    
-    data = event_data.get("data")
+
     if not data:
         return {"status": "error", "message": "Missing event data"}
-    
-    # Process the event
-    result = process_subscription_event(db, event_data)
-    
+
+    # Process the event and update the log with the outcome
+    try:
+        result = process_subscription_event(db, event_data)
+        processed_successfully = result is not None
+        webhook_log.processed_successfully = processed_successfully
+        webhook_log.processing_result = result
+        db.commit()
+    except Exception as e:
+        webhook_log.processed_successfully = False
+        webhook_log.error_message = str(e)
+        db.commit()
+        raise
+
     if not result:
         return {"status": "warning", "message": "No action taken for this event"}
-    
+
     response_message = f"Processed {event_type} event successfully"
     if result.get("status") == "notification_scheduled":
         response_message = "Payment reminder notification scheduled"
     elif result.get("status") == "payment_failed":
         response_message = "Payment failure recorded"
-    
+
     return {
         "status": "success",
         "message": response_message,

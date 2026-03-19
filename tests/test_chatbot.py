@@ -53,8 +53,7 @@ def test_chatbot_interaction(client, db, mocker):
     assert messages[1].role == "assistant"
     assert messages[1].content == "This is a mocked response from the AI."
 
-@pytest.mark.asyncio
-async def test_share_anonymous_chat(client, monkeypatch):
+def test_share_anonymous_chat(client, monkeypatch):
     # Mock the anonymous chat service functions
     async def mock_get_anonymous_messages(*args, **kwargs):
         return [

@@ -32,6 +32,7 @@ class UserInDB(UserBase):
     subscription_start_date: Optional[datetime] = None
     subscription_expiry_date: Optional[datetime] = None
     subscription_auto_renew: bool = False
+    admin_user: bool = False
 
     class Config:
         from_attributes = True
@@ -41,6 +42,7 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str
     subscription: Optional[SubscriptionDetails] = None
+    user: Optional[UserInDB] = None
 
 class GoogleToken(BaseModel):
     access_token: str

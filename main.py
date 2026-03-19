@@ -2,9 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import auth, chat, chatbot, dashboard, attachments, subscriptions
 from app.core.config import settings
-from app.core.deps import setup_rate_limiter
+from app.core.deps import setup_rate_limiter, run_subscription_expiry_job, expire_subscriptions
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+import asyncio
 
 class SecureHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
@@ -20,6 +21,10 @@ app = FastAPI(title=settings.PROJECT_NAME, debug=True)
 @app.on_event("startup")
 async def startup():
     await setup_rate_limiter()
+    # Run once immediately on startup to clean up any already-expired subscriptions
+    expire_subscriptions()
+    # Then schedule the daily background job
+    asyncio.create_task(run_subscription_expiry_job())
 
 """
 def get_allowed_origins():

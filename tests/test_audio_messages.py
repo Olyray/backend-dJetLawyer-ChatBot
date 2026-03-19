@@ -35,12 +35,13 @@ def mock_llm():
         mock_llm_class.return_value = mock_llm
         yield mock_llm
 
-def test_audio_message_in_chat(client, db, setup_upload_dir, mock_rag_chain, mock_llm):
+def test_audio_message_in_chat(client, db, setup_upload_dir, mock_rag_chain, mock_llm, make_premium_user):
     # Create a test user
     hashed_password = get_password_hash("testpassword")
     user = User(email="audiotest@example.com", hashed_password=hashed_password)
     db.add(user)
     db.commit()
+    make_premium_user(user)
 
     # Generate access token
     access_token = create_access_token(data={"sub": user.email})

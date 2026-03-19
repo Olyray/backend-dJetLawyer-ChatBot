@@ -6,9 +6,14 @@ from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.models.user import User
+from app.models.user import User, SubscriptionPlanType
 from typing import Optional
 from app.services.subscription import is_user_premium
+from datetime import datetime
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
@@ -48,6 +53,43 @@ def get_rate_limiter():
         limiter = RateLimiter(times=settings.RATE_LIMIT_TIMES, seconds=settings.RATE_LIMIT_SECONDS)
         await limiter(request, response)
     return rate_limit
+
+
+def expire_subscriptions():
+    """Downgrade users whose subscription_expiry_date is more than 5 days past."""
+    db = SessionLocal()
+    try:
+        from datetime import timedelta
+        cutoff = datetime.utcnow() - timedelta(days=5)
+        expired_users = db.query(User).filter(
+            User.subscription_plan == SubscriptionPlanType.PREMIUM,
+            User.subscription_expiry_date < cutoff
+        ).all()
+
+        if expired_users:
+            for user in expired_users:
+                logger.info(
+                    f"Expiring subscription for {user.email} "
+                    f"(expired: {user.subscription_expiry_date})"
+                )
+                user.subscription_plan = SubscriptionPlanType.FREE
+            db.commit()
+            logger.info(f"Downgraded {len(expired_users)} expired subscription(s).")
+        else:
+            logger.debug("No expired subscriptions found.")
+    except Exception as e:
+        logger.error(f"Error during subscription expiry check: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+async def run_subscription_expiry_job(interval_seconds: int = 86400):
+    """Background loop that checks for expired subscriptions once a day."""
+    logger.info("Subscription expiry background job started.")
+    while True:
+        await asyncio.sleep(interval_seconds)
+        expire_subscriptions()
 
 def optional_oauth2_scheme(
     authorization: Optional[str] = Header(None)
